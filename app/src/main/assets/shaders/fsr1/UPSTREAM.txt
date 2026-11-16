@@ -1,0 +1,6 @@
+AMD FidelityFX FSR 1, unmodified FP32 reference headers
+Source: https://github.com/GPUOpen-Effects/FidelityFX-FSR/tree/a21ffb8f6c13233ba336352bdff293894c706575/ffx-fsr
+License: MIT; full copyright and permission notice in both headers.
+
+GLES callbacks are in easu.glsl and rcas.glsl. textureGather is emulated
+with clamped texelFetch calls for OpenGL ES 3.0 compatibility.
