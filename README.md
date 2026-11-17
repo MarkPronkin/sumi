@@ -23,7 +23,8 @@
 - **One app, three layouts.** Phones use bottom navigation, and tablets and other wide windows use a side rail. Android TV has top navigation and orange focus rings, and every screen is built for D-pad, Select, and Back.
 - **Your Crunchyroll library.** Sign in to browse the catalogue, add and remove series from your watchlist, and resume episodes from your account's saved position.
 - **My Content.** Watched shows, Watchlist, and History are grouped in one place. History shows the latest saved position for each episode.
-- **Native playback.** Episodes play in Sumi using Media3 and Android Widevine. You can choose audio and subtitle tracks, stream resolution, and the skip interval. Next episode and skip recap, intro, and credits appear when Crunchyroll supplies the data.
+- **Native playback.** Episodes play in Sumi using Media3 and Android Widevine. You can choose audio and subtitle tracks and the skip interval. Next episode and skip recap, intro, and credits appear when Crunchyroll supplies the data.
+- **Pick the resolution, even on TV.** The player's **Quality** menu lists every resolution the stream offers, plus Auto, on phones, tablets, and Android TV. The official Crunchyroll app doesn't let you choose the resolution on TV. Sumi remembers your choice for each profile.
 - **Ratings at a glance.** Show pages list Crunchyroll, MyAnimeList, and IMDb scores when a confident title match exists.
 - **FSR 1 upscaling.** AMD FidelityFX Super Resolution 1 can upscale lower-resolution SDR video to your display. You can adjust its sharpness.
 - **Motion you can tune.** Shared artwork transitions, spring physics, and small celebrations are on by default. Choose **Maximal**, **Standard**, or **Reduced**. Sumi also follows Android's animation settings.
