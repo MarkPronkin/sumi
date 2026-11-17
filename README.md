@@ -1,3 +1,5 @@
+<img src="design/brand/sumi-spark.svg" width="96" height="96" alt="Sumi Spark logo">
+
 # Sumi
 
 Sumi is an independent, unofficial Crunchyroll client for Android phones, tablets, and Android TV. It uses Kotlin and Jetpack Compose for a true-black interface that adapts to touchscreens and TV remotes. One APK runs on all three.
