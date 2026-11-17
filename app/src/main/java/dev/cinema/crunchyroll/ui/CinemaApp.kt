@@ -49,6 +49,7 @@ fun CinemaApp(vm: CinemaViewModel) {
     val destination by vm.destination.collectAsStateWithLifecycle()
     val origin by vm.origin.collectAsStateWithLifecycle()
     val artworkOriginRounded by vm.artworkOriginRounded.collectAsStateWithLifecycle()
+    val appUpdatesOpen by vm.appUpdatesOpen.collectAsStateWithLifecycle()
     var notice by remember { mutableStateOf<Notice?>(null) }
     LaunchedEffect(vm) { vm.messages.collectLatest { notice=it;delay(4500);notice=null } }
     BackHandler(enabled=loginOpen || playing!=null || detail!=null || destination!="Home") { if(loginOpen) vm.closeLogin() else vm.back() }
@@ -109,6 +110,7 @@ fun CinemaApp(vm: CinemaViewModel) {
                         notice?.undo?.let { undo -> Action(notice?.actionLabel ?: "Undo",onClick={undo();notice=null}) }
                     }
                 }
+                if (appUpdatesOpen) AppUpdatesDialog(vm.appUpdates, vm::closeAppUpdates)
             }
         }
     }

@@ -12,10 +12,12 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import dev.cinema.crunchyroll.BuildConfig
+import dev.cinema.crunchyroll.R
 import dev.cinema.crunchyroll.data.*
 import dev.cinema.crunchyroll.design.*
 import dev.cinema.crunchyroll.data.account.*
@@ -111,6 +113,11 @@ fun SettingsScreen(vm: CinemaViewModel,settings: ProfileData) {
             Action("Back to profile",Glyph.Back){vm.navigate("Profile")}
             ScreenHeader("Settings","MAKE IT YOURS",if(connected) "Preferences for your account profile." else "Preferences for your demo profile.")
         } }
+        item {
+            SettingsGroup(stringResource(R.string.app_updates), stringResource(R.string.update_installed_version, BuildConfig.VERSION_NAME)) {
+                AppUpdateControls(vm.appUpdates)
+            }
+        }
         item {SettingsGroup("Motion intensity","Set the pace, from expressive to subtle.") {
             FlowRow(horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                 MotionLevel.entries.forEach { m -> ChoiceChip(m.name,selected=settings.motion==m){vm.preferences {it.copy(motion=m)}} }

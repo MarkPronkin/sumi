@@ -117,7 +117,7 @@ fun ScreenHeader(title: String, eyebrow: String? = null, subtitle: String? = nul
 @Composable
 fun Wordmark(modifier: Modifier = Modifier,label: String? = null) {
     Row(modifier,verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(9.dp)) {
-        Image(painterResource(dev.cinema.crunchyroll.R.drawable.ic_cinema),null,Modifier.size(32.dp))
+        Image(painterResource(dev.cinema.crunchyroll.R.drawable.ic_sumi_mark),null,Modifier.size(32.dp))
         Column(verticalArrangement=Arrangement.spacedBy(2.dp)) { Text(stringResource(dev.cinema.crunchyroll.R.string.app_name),fontWeight=FontWeight.Bold,fontSize=22.sp,letterSpacing=(-1).sp)
             Text(label ?: if(LocalConnected.current) "UNOFFICIAL" else "UNOFFICIAL · DEMO",color=Muted,fontSize=8.sp,lineHeight=12.sp,letterSpacing=1.4.sp) }
     }

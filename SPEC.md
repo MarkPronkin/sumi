@@ -1,6 +1,6 @@
 # Sumi Android app specification
 
-Updated 16 November 2026. This is the implementation handoff for Sumi, an unofficial Crunchyroll client for Android phones, tablets, and Android TV, based on [aarron-lee/crunchyroll-linux](https://github.com/aarron-lee/crunchyroll-linux).
+Updated 18 November 2026. This is the implementation handoff for Sumi, an unofficial Crunchyroll client for Android phones, tablets, and Android TV, based on [aarron-lee/crunchyroll-linux](https://github.com/aarron-lee/crunchyroll-linux).
 
 The user selected **Cinema with true OLED black backgrounds** and requested **an animation for every action, deliberately over the top**. These are the governing product decisions. Build the Android app from this specification without reopening the choice of visual direction.
 
@@ -33,6 +33,8 @@ The gallery also contains Zen and Panels. **Cinema OLED is the selected design.*
 The app should make it easy to choose a profile, resume a show, discover anime, manage a watchlist, and watch an episode with the desired audio and subtitles. Home should give the featured artwork room to breathe while keeping Continue Watching close to the first viewport.
 
 The finalized project and app name is **Sumi**, with the description **Unofficial Crunchyroll client**. Identify its unofficial status in onboarding and About. Use real account and catalogue information when connected; fixture data belongs in an explicitly labeled demo mode. Preserve the existing Android application ID so updates retain installed sessions and preferences.
+
+The selected logo is **Spark (option 4)**, confirmed on 18 November 2026. Preserve its asymmetric four-point silhouette and open S-shaped cut, using the existing orange on black. Use the [vector master](design/brand/sumi-spark.svg) and [outlined DM Sans wordmark](design/brand/sumi-wordmark.svg) across launcher, splash, app headers, and TV branding. Keep the symbol inside the adaptive icon safe area and supply the monochrome form for themed launchers.
 
 ### Feature scope
 

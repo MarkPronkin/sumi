@@ -8,9 +8,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
+import dev.cinema.crunchyroll.R
 import dev.cinema.crunchyroll.data.*
 import dev.cinema.crunchyroll.data.account.*
 import dev.cinema.crunchyroll.playback.NativePlaybackService
+import dev.cinema.crunchyroll.updates.AppUpdates
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -82,8 +84,11 @@ class CinemaViewModel(application: Application, private val saved: SavedStateHan
     val busy = MutableStateFlow<Set<String>>(emptySet())
     private val notices = Channel<Notice>(Channel.BUFFERED)
     val messages = notices.receiveAsFlow()
+    internal val appUpdates = AppUpdates(application, viewModelScope)
+    internal val appUpdatesOpen = saved.getStateFlow("appUpdatesOpen", false)
 
     init {
+        checkForLaunchUpdate()
         ContentView.fromLegacyRoute(destination.value)?.let {
             saved["contentView"]=it.name;saved["destination"]="My Content"
         }
@@ -104,6 +109,20 @@ class CinemaViewModel(application: Application, private val saved: SavedStateHan
         }
         authJob=viewModelScope.launch {session.restore()}
     }
+
+    internal fun checkForLaunchUpdate() {
+        val application = getApplication<Application>()
+        appUpdates.check { release ->
+            notices.trySend(Notice(
+                application.getString(R.string.update_available, release.version),
+                { saved["appUpdatesOpen"] = true },
+                application.getString(R.string.app_updates),
+            ))
+        }
+    }
+
+    internal fun closeAppUpdates() { saved["appUpdatesOpen"] = false }
+
     fun navigate(target: String) {
         val legacyView=ContentView.fromLegacyRoute(target)
         if(legacyView!=null) saved["contentView"]=legacyView.name
