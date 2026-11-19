@@ -35,25 +35,8 @@ internal class GitHubReleases(
         .build(),
 ) {
     suspend fun latestUpdate(installedVersion: String): AppRelease? = runInterruptible(Dispatchers.IO) {
-        val request = Request.Builder().url("https://api.github.com/repos/$REPOSITORY/releases/latest")
-            .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", "2026-03-10")
-            .header("User-Agent", "Sumi-Android")
-            .build()
-        val call = client.newCall(request)
-        call.timeout().timeout(12, TimeUnit.SECONDS)
-        val release = call.execute().use { response ->
-            if (response.code == 404) throw UpdateException(R.string.update_no_public_release)
-            if (!response.isSuccessful) throw IOException("GitHub releases HTTP ${response.code}")
-            try {
-                json.decodeFromString<Release>(response.body.string())
-            } catch (_: SerializationException) {
-                throw UpdateException(R.string.update_invalid_release)
-            }
-        }
         val installed = Version.parse(installedVersion) ?: throw UpdateException(R.string.update_invalid_release)
-        val version = Version.parse(release.tag)?.takeIf { it.stable }
-            ?: throw UpdateException(R.string.update_invalid_release)
+        val (release, version) = latestRelease()
         if (version <= installed) return@runInterruptible null
 
         val apks = release.assets.filter {
@@ -68,6 +51,50 @@ internal class GitHubReleases(
             it.removePrefix("sha256:")
         }
         AppRelease(release.tag.removePrefix("v"), url, apk.size, sha256)
+    }
+
+    private fun latestRelease(): Pair<Release, Version> {
+        val stable = fetchReleases<Release>("/latest")
+        if (stable != null) {
+            val version = Version.parse(stable.tag)?.takeIf { it.stable }
+                ?: throw UpdateException(R.string.update_invalid_release)
+            return stable to version
+        }
+
+        var newest: Pair<Release, Version>? = null
+        var page = 1
+        do {
+            val releases = fetchReleases<List<Release>>("?per_page=$PAGE_SIZE&page=$page")
+                ?: throw UpdateException(R.string.update_no_public_release)
+            for (release in releases) {
+                if (release.draft || !release.prerelease) continue
+                val version = Version.parse(release.tag) ?: continue
+                if (version.isAlphaOrBeta && (newest == null || version > newest.second)) {
+                    newest = release to version
+                }
+            }
+            page++
+        } while (releases.size == PAGE_SIZE)
+        return newest ?: throw UpdateException(R.string.update_no_public_release)
+    }
+
+    private inline fun <reified T : Any> fetchReleases(suffix: String): T? {
+        val request = Request.Builder().url("https://api.github.com/repos/$REPOSITORY/releases$suffix")
+            .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2026-03-10")
+            .header("User-Agent", "Sumi-Android")
+            .build()
+        val call = client.newCall(request)
+        call.timeout().timeout(12, TimeUnit.SECONDS)
+        return call.execute().use { response ->
+            if (response.code == 404) return null
+            if (!response.isSuccessful) throw IOException("GitHub releases HTTP ${response.code}")
+            try {
+                json.decodeFromString<T>(response.body.string())
+            } catch (_: SerializationException) {
+                throw UpdateException(R.string.update_invalid_release)
+            }
+        }
     }
 
     suspend fun download(release: AppRelease, destination: File, progress: (Int) -> Unit) {
@@ -105,17 +132,43 @@ internal class GitHubReleases(
     }
 
     @Serializable
-    private data class Release(@SerialName("tag_name") val tag: String, val assets: List<Asset>)
+    private data class Release(
+        @SerialName("tag_name") val tag: String,
+        val assets: List<Asset>,
+        val draft: Boolean = false,
+        val prerelease: Boolean = false,
+    )
 
     @Serializable
     private data class Asset(val name: String, val state: String, val size: Long, val digest: String? = null)
 
-    private data class Version(val major: Int, val minor: Int, val patch: Int, val stable: Boolean) : Comparable<Version> {
-        override fun compareTo(other: Version): Int =
-            compareValuesBy(this, other, Version::major, Version::minor, Version::patch, Version::stable)
+    private data class Version(val major: Int, val minor: Int, val patch: Int, val prerelease: List<String>) : Comparable<Version> {
+        val stable get() = prerelease.isEmpty()
+        val isAlphaOrBeta get() = prerelease.firstOrNull() in setOf("alpha", "beta")
+
+        override fun compareTo(other: Version): Int {
+            val core = compareValuesBy(this, other, Version::major, Version::minor, Version::patch, Version::stable)
+            if (core != 0) return core
+            for (index in 0 until minOf(prerelease.size, other.prerelease.size)) {
+                val order = compareIdentifiers(prerelease[index], other.prerelease[index])
+                if (order != 0) return order
+            }
+            return prerelease.size.compareTo(other.prerelease.size)
+        }
 
         companion object {
             private val pattern = Regex("""v?([0-9]+)\.([0-9]+)\.([0-9]+)(-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?""")
+
+            private fun compareIdentifiers(left: String, right: String): Int {
+                val leftNumeric = left.all(Char::isDigit)
+                val rightNumeric = right.all(Char::isDigit)
+                return when {
+                    leftNumeric && rightNumeric -> left.toBigInteger().compareTo(right.toBigInteger())
+                    leftNumeric -> -1
+                    rightNumeric -> 1
+                    else -> left.compareTo(right)
+                }
+            }
 
             fun parse(value: String): Version? {
                 val match = pattern.matchEntire(value) ?: return null
@@ -124,13 +177,14 @@ internal class GitHubReleases(
                     major.toIntOrNull() ?: return null,
                     minor.toIntOrNull() ?: return null,
                     patch.toIntOrNull() ?: return null,
-                    stable = prerelease.isEmpty(),
+                    prerelease = if (prerelease.isEmpty()) emptyList() else prerelease.removePrefix("-").split('.'),
                 )
             }
         }
     }
 
     private companion object {
+        const val PAGE_SIZE = 100
         val json = Json { ignoreUnknownKeys = true }
         val sha256Pattern = Regex("sha256:[0-9a-fA-F]{64}")
     }

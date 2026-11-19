@@ -19,8 +19,8 @@ android {
         applicationId = "dev.cinema.crunchyroll"
         minSdk = 26
         targetSdk = 37
-        versionCode = 20
-        versionName = "0.2.0-beta"
+        versionCode = 21
+        versionName = "0.2.1-beta"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments["notClass"] = "dev.cinema.crunchyroll.NativeAccountPlaybackTest,dev.cinema.crunchyroll.MyAnimeListLiveTest"
     }

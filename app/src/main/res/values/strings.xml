@@ -20,7 +20,7 @@
     <string name="update_downloading">Downloading Sumi %1$s… %2$d%%</string>
     <string name="update_ready">Sumi %1$s is ready to install. Follow Android’s prompts to finish.</string>
     <string name="update_install">Install update</string>
-    <string name="update_no_public_release">No stable Sumi release is available on GitHub yet.</string>
+    <string name="update_no_public_release">No stable, alpha, or beta Sumi release is available on GitHub yet.</string>
     <string name="update_invalid_release">Couldn’t read the latest GitHub release.</string>
     <string name="update_no_apk">The latest GitHub release has no installable Sumi APK.</string>
     <string name="update_check_failed">Couldn’t check for updates. Try again in a moment.</string>

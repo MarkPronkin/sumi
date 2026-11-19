@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MarkPronkin/sumi/releases/tag/v0.2.0-beta"><img alt="Version 0.2.0 beta" src="https://img.shields.io/badge/version-0.2.0--beta-FF7A26"></a>
+  <a href="https://github.com/MarkPronkin/sumi/releases/tag/v0.2.1-beta"><img alt="Version 0.2.1 beta" src="https://img.shields.io/badge/version-0.2.1--beta-FF7A26"></a>
   <img alt="Android 8.0 or newer" src="https://img.shields.io/badge/Android-8.0%2B-000000">
   <img alt="Kotlin and Jetpack Compose" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-101010">
 </p>
@@ -33,7 +33,7 @@
 
 ## Getting started
 
-[Download the 0.2.0 beta APK](https://github.com/MarkPronkin/sumi/releases/download/v0.2.0-beta/sumi.apk) for Android phones, tablets, Android TV, and supported Quest headsets.
+[Download the 0.2.1 beta APK](https://github.com/MarkPronkin/sumi/releases/download/v0.2.1-beta/sumi.apk) for Android phones, tablets, Android TV, and supported Quest headsets.
 
 ### Requirements
 
@@ -85,13 +85,13 @@ The app has four main sections:
 
 In **Profile → Settings**, you can choose your preferred audio and subtitle languages from 22 options. You can also turn autoplay on or off, set the skip interval (5, 10, 15, or 30 seconds), choose the motion intensity, and turn touch haptics on or off. Settings are saved per profile. **Check this display** plays test clips that help with external-display and Widevine troubleshooting.
 
-Sumi checks GitHub for stable releases when it launches. Under **Profile → Settings → App updates**, you can check again or download an available update. Choose **Install update** and follow Android's prompts. Android may ask you to allow Sumi to install apps the first time.
+Sumi checks GitHub for updates when it launches. It prefers the latest stable release. If there is no stable release, it checks for the highest published alpha or beta version. Under **Profile → Settings → App updates**, you can check again or download an available update. Choose **Install update** and follow Android's prompts. Android may ask you to allow Sumi to install apps the first time.
 
 On a phone or tablet, double-tap the left or right side of the video to skip back or forward.
 
 ### Publishing APK updates
 
-Publish in the public `MarkPronkin/sumi` repository. Set `versionName` in `app/build.gradle.kts` to the release version, increase `versionCode`, and use a matching tag such as `v0.1.0`. Upload a signed universal APK as `sumi.apk`. The in-app updater offers stable releases and also accepts a single APK with a different filename. Use the same release signing key across builds so Android can install updates.
+Publish in the public `MarkPronkin/sumi` repository. Set `versionName` in `app/build.gradle.kts` to the release version, increase `versionCode`, and use a matching tag such as `v0.1.0`. For alpha and beta builds, mark the GitHub release as a prerelease and use a tag such as `v0.2.0-beta` or `v0.2.0-beta.2`. Upload a signed universal APK as `sumi.apk`. The updater also accepts a single APK with a different filename. Use the same release signing key across builds so Android can install updates.
 
 ### Privacy
 
