@@ -12,11 +12,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
@@ -70,12 +68,23 @@ fun CinemaApp(vm: CinemaViewModel) {
                     }
                     PlayerSystemBars(enabled=scene.startsWith("player:"))
                     PlayerOrientation(enabled=scene.startsWith("player:"))
+                    if (scene == "shell" && account is AccountState.SignedIn && destination in listOf("Home", "My Content")) {
+                        PrefetchLibrary(vm, state.current)
+                    }
                     val motion=LocalMotion.current
-                    AnimatedContent(scene,modifier=Modifier.fillMaxSize(),transitionSpec={
+                    // Catalogue cards and compact detail headers both use portrait artwork.
+                    val samePoster = !LocalWide.current && artworkOriginRounded
+                    // Welcome and login share a backdrop and animate their own foreground.
+                    AnimatedContent(scene,modifier=Modifier.fillMaxSize(),contentKey={if(it=="login") "welcome" else it},transitionSpec={
                         // Shared artwork owns its geometry. Translating/scaling its parent caused jumps and double transforms.
                         if(targetState.startsWith("player:")) {
                             // Reveal playback promptly; its feedback animates independently of the native surface.
                             fadeIn(tween(motion.millis(180,140))) togetherWith fadeOut(tween(motion.millis(120,100)))
+                        } else if (initialState.startsWith("detail:") && targetState == "shell") {
+                            // The shared poster finishes its own return after the detail text clears.
+                            EnterTransition.None togetherWith fadeOut(tween(80))
+                        } else if (samePoster && initialState == "shell" && targetState.startsWith("detail:")) {
+                            EnterTransition.None togetherWith ExitTransition.None
                         } else if(initialState.startsWith("detail:") || targetState.startsWith("detail:") ||
                             initialState.startsWith("player:")) {
                             fadeIn(tween(motion.millis(460))) togetherWith fadeOut(tween(motion.millis(340)))
@@ -88,8 +97,7 @@ fun CinemaApp(vm: CinemaViewModel) {
                                     Text("Restoring your session…",color=Muted)
                                     Action("Continue without signing in"){vm.closeLogin()}
                                 }
-                                route=="welcome" -> WelcomeScreen(vm::enterDemo,vm::openLogin)
-                                route=="login" -> LoginScreen(vm)
+                                route=="welcome" || route=="login" -> WelcomeScreen(vm, showLogin = route=="login")
                                 route.startsWith("player:") -> vm.catalogue.episode(route.removePrefix("player:"))?.let { episode ->
                                     PlayerScreen(episode,vm,state.activeProfile,state.current,onBack={vm.back()})
                                 }
@@ -112,24 +120,6 @@ fun CinemaApp(vm: CinemaViewModel) {
                 }
                 if (appUpdatesOpen) AppUpdatesDialog(vm.appUpdates, vm::closeAppUpdates)
             }
-        }
-    }
-}
-
-@Composable
-private fun WelcomeScreen(onEnter: () -> Unit,onLogin: () -> Unit) {
-    val wide = LocalWide.current
-    Box(Modifier.fillMaxSize().systemBarsPadding()) {
-        Art(DemoCatalogue().shows.first(),Modifier.fillMaxSize().graphicsLayer { alpha=.48f })
-        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Oled.copy(alpha=.15f),Oled,Oled))))
-        Column(Modifier.align(Alignment.Center).widthIn(max=620.dp).verticalScroll(rememberScrollState()).padding(if(wide) 48.dp else 24.dp),verticalArrangement=Arrangement.spacedBy(24.dp)) {
-            Reveal { Wordmark(label="UNOFFICIAL") }
-            Reveal(1) { Eyebrow("YOUR NEXT WORLD AWAITS") }
-            Reveal(2) { Text("A LITTLE MORE\nEXTRAORDINARY.",fontFamily=DisplayFont,fontWeight=FontWeight.Bold,fontSize=if(wide) 64.sp else 52.sp,lineHeight=if(wide) 60.sp else 50.sp) }
-            Reveal(3) { Text("Big stories. True black. A little extra motion.",fontSize=18.sp) }
-            Reveal(4) { Text("Sumi is an unofficial Crunchyroll client. Sign in to your Crunchyroll account, or explore the local demo.",color=Muted,fontSize=15.sp,lineHeight=23.sp) }
-            Reveal(5) { Action("Sign in",Glyph.Profile,filled=true,modifier=Modifier.fillMaxWidth(),onClick=onLogin) }
-            Reveal(6) { Action("Explore the demo",Glyph.Play,modifier=Modifier.fillMaxWidth(),onClick=onEnter) }
         }
     }
 }

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sumi — logo options</title>
+<style>
+:root { color-scheme: dark light; --sumi-orange:#ff7a26; --sumi-black:#000; --sumi-paper:#f5f3f0; }
+* { box-sizing:border-box; }
+body { margin:0; color:var(--foreground, #ededed); font-family:var(--font-sans, Arial, sans-serif); font-size:14px; }
+button { font:inherit; }
+.toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.toolbar-label { font-size:12px; color:var(--muted-foreground, #a5a3aa); }
+.modes { display:flex; gap:4px; padding:4px; border:1px solid var(--border, #333); border-radius:var(--radius, 12px); }
+.mode { border:0; padding:7px 13px; border-radius:calc(var(--radius, 12px) - 4px); background:transparent; color:var(--muted-foreground, #a5a3aa); cursor:pointer; font-size:12px; font-weight:600; }
+.mode[aria-pressed="true"] { background:var(--secondary, #2a2a2d); color:var(--foreground, #ededed); }
+.mode:focus-visible { outline:2px solid var(--ring, #ff7a26); outline-offset:2px; }
+.grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; }
+.option { min-width:0; padding:16px; border:1px solid var(--border, #333); background:var(--card, #171719); border-radius:var(--radius, 16px); }
+.heading { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+.number { font-family:var(--font-mono, monospace); font-size:12px; color:var(--muted-foreground, #a5a3aa); }
+h2 { margin:0; font-size:16px; letter-spacing:-.025em; font-weight:650; }
+.mood { margin-left:auto; font-size:11px; color:var(--muted-foreground, #a5a3aa); }
+.stage { --stage-bg:var(--sumi-black); --stage-fg:var(--sumi-paper); --stage-line:#252528; background:var(--stage-bg); color:var(--stage-fg); border-radius:calc(var(--radius, 16px) - 4px); padding:16px; }
+.hero { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:200px; }
+.hero img { display:block; width:158px; height:158px; object-fit:contain; }
+.wordmark { font-family:Arial, sans-serif; font-weight:700; font-size:35px; letter-spacing:-1.9px; line-height:1; margin-top:-5px; padding-bottom:14px; }
+.usage { display:flex; align-items:center; justify-content:center; gap:27px; min-height:79px; padding-top:14px; border-top:1px solid var(--stage-line); }
+.usage-sample { display:flex; align-items:center; gap:8px; }
+.usage-label { font-family:var(--font-mono, monospace); font-size:10px; opacity:.55; }
+.launcher { display:grid; place-items:center; background:#18181b; width:48px; height:48px; border-radius:12px; border:1px solid #29292e; overflow:hidden; }
+.launcher img { display:block; width:48px; height:48px; object-fit:contain; }
+.small-mark { display:block; width:24px; height:24px; object-fit:contain; }
+.description { margin:14px 0 1px; color:var(--muted-foreground, #a5a3aa); font-size:12px; line-height:1.55; }
+.description strong { color:var(--foreground, #ededed); font-weight:500; }
+.board[data-mode="light"] .stage { --stage-bg:var(--sumi-paper); --stage-fg:#111; --stage-line:#dedad5; }
+.board[data-mode="light"] .launcher { background:#fff; border-color:#dedad5; }
+.board[data-mode="mono"] .mark { filter:brightness(0) invert(1); }
+.note { margin:14px 0 0; font-size:12px; color:var(--muted-foreground, #a5a3aa); line-height:1.5; }
+@media (max-width:480px) {
+  .grid { grid-template-columns:1fr; }
+  .toolbar { gap:8px; }
+  .mode { padding:7px 10px; }
+  .hero { min-height:185px; }
+  .hero img { width:146px; height:146px; }
+}
+@media (prefers-reduced-motion:no-preference) { .stage { transition:background-color .18s, color .18s; } }
+</style>
+</head>
+<body>
+<main class="board" data-mode="dark">
+  <div class="toolbar">
+    <span class="toolbar-label">Compare on</span>
+    <div class="modes" role="group" aria-label="Logo preview background">
+      <button class="mode" type="button" data-mode="dark" aria-pressed="true">Dark</button>
+      <button class="mode" type="button" data-mode="light" aria-pressed="false">Light</button>
+      <button class="mode" type="button" data-mode="mono" aria-pressed="false">One color</button>
+    </div>
+  </div>
+  <div class="grid">
+    <article class="option">
+      <div class="heading"><span class="number">01</span><h2>Flow</h2><span class="mood">Clean / confident</span></div>
+      <div class="stage">
+        <div class="hero"><img class="mark" src="01-flow.png" alt="Flow: a broad geometric orange S with diagonal terminals"><span class="wordmark">Sumi</span></div>
+        <div class="usage" aria-label="Small-size previews">
+          <div class="usage-sample"><span class="launcher"><img class="mark" src="01-flow.png" alt="Flow launcher preview"></span><span class="usage-label">48px</span></div>
+          <div class="usage-sample"><img class="mark small-mark" src="01-flow.png" alt="Flow at 24 pixels"><span class="usage-label">24px</span></div>
+        </div>
+      </div>
+      <p class="description"><strong>A ribbon-shaped S.</strong> A direct link to the name, with a strong, compact silhouette.</p>
+    </article>
+    <article class="option">
+      <div class="heading"><span class="number">02</span><h2>Ink</h2><span class="mood">Expressive / calm</span></div>
+      <div class="stage">
+        <div class="hero"><img class="mark" src="02-ink.png" alt="Ink: a flowing orange S-shaped brush gesture with tapered ends"><span class="wordmark">Sumi</span></div>
+        <div class="usage" aria-label="Small-size previews">
+          <div class="usage-sample"><span class="launcher"><img class="mark" src="02-ink.png" alt="Ink launcher preview"></span><span class="usage-label">48px</span></div>
+          <div class="usage-sample"><img class="mark small-mark" src="02-ink.png" alt="Ink at 24 pixels"><span class="usage-label">24px</span></div>
+        </div>
+      </div>
+      <p class="description"><strong>A sweeping ink gesture.</strong> Softer curves and a rising finish give Sumi a more personal character.</p>
+    </article>
+    <article class="option">
+      <div class="heading"><span class="number">03</span><h2>Frame</h2><span class="mood">Cinematic / precise</span></div>
+      <div class="stage">
+        <div class="hero"><img class="mark" src="03-frame.png" alt="Frame: two orange interlocking corners form a square with a play triangle cut out"><span class="wordmark">Sumi</span></div>
+        <div class="usage" aria-label="Small-size previews">
+          <div class="usage-sample"><span class="launcher"><img class="mark" src="03-frame.png" alt="Frame launcher preview"></span><span class="usage-label">48px</span></div>
+          <div class="usage-sample"><img class="mark small-mark" src="03-frame.png" alt="Frame at 24 pixels"><span class="usage-label">24px</span></div>
+        </div>
+      </div>
+      <p class="description"><strong>A frame with play in the center.</strong> The clearest connection to watching anime on phones and TV.</p>
+    </article>
+    <article class="option">
+      <div class="heading"><span class="number">04</span><h2>Spark</h2><span class="mood">Energetic / playful</span></div>
+      <div class="stage">
+        <div class="hero"><img class="mark" src="04-spark.png" alt="Spark: an asymmetric four-point orange flare with an S-shaped cut"><span class="wordmark">Sumi</span></div>
+        <div class="usage" aria-label="Small-size previews">
+          <div class="usage-sample"><span class="launcher"><img class="mark" src="04-spark.png" alt="Spark launcher preview"></span><span class="usage-label">48px</span></div>
+          <div class="usage-sample"><img class="mark small-mark" src="04-spark.png" alt="Spark at 24 pixels"><span class="usage-label">24px</span></div>
+        </div>
+      </div>
+      <p class="description"><strong>A motion flare with an S-shaped cut.</strong> An energetic direction inspired by anime movement.</p>
+    </article>
+  </div>
+  <p class="note">Selected: 04 Spark · 18 November 2026. <a href="../brand/sumi-spark.svg">Vector master</a> · <a href="../brand/sumi-wordmark.svg">Sumi wordmark</a></p>
+</main>
+<script>
+document.querySelectorAll('.mode').forEach(button => {
+  button.addEventListener('click', () => {
+    document.querySelector('.board').dataset.mode = button.dataset.mode;
+    document.querySelectorAll('.mode').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+  });
+});
+</script>
+</body>
+</html>

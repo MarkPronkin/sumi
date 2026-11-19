@@ -13,11 +13,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.cinema.crunchyroll.data.MotionLevel
 import kotlinx.coroutines.delay
@@ -28,33 +33,52 @@ val LocalSharedScope = staticCompositionLocalOf<SharedTransitionScope?> { null }
 val LocalSceneScope = staticCompositionLocalOf<AnimatedVisibilityScope?> { null }
 val LocalArtworkOriginRounded = staticCompositionLocalOf { true }
 val ArtworkCardCorner = 12.dp
+private val PosterFade = Brush.verticalGradient(listOf(Color.Transparent, Oled))
 
 @Composable
-fun Modifier.sharedArt(key: String, rounded: Boolean = false): Modifier {
+fun Modifier.sharedArt(key: String, rounded: Boolean = false, portraitPoster: Boolean = false): Modifier {
     val shared = LocalSharedScope.current
     val scene = LocalSceneScope.current
     val motion = LocalMotion.current
     val restingCorner = if(rounded) ArtworkCardCorner else 0.dp
-    return if (shared != null && scene != null && motion == MotionLevel.Maximal) with(shared) {
-        val content = rememberSharedContentState(key)
+    val radius: Dp
+    val artwork = if (shared != null && scene != null && motion == MotionLevel.Maximal) {
+        val content = shared.rememberSharedContentState(key)
         val otherCorner = if(!rounded && LocalArtworkOriginRounded.current) ArtworkCardCorner else 0.dp
         val corner by scene.transition.animateDp(
             transitionSpec={spring(dampingRatio=1f,stiffness=180f,visibilityThreshold=.01.dp)},
             label="artwork-corner-$key",
         ) { if(it==EnterExitState.Visible) restingCorner else otherCorner }
-        this@sharedArt.sharedBounds(content, scene,
-            enter=fadeIn(tween(200,delayMillis=80)),exit=fadeOut(tween(160)),
-            resizeMode=SharedTransitionScope.ResizeMode.RemeasureToBounds,
-            boundsTransform = { _, _ -> spring(dampingRatio = 1f, stiffness = 180f) })
-            // Parent clips are left behind in the overlay. Both images must carry the
-            // same animated shape, including when the transition reverses mid-flight.
-            .clip(RoundedCornerShape(if(content.isMatchFound) corner else restingCorner))
-    } else clip(RoundedCornerShape(restingCorner))
+        val bounds: BoundsTransform = { _, _ -> spring(dampingRatio = 1f, stiffness = 180f) }
+        radius = if (content.isMatchFound) corner else restingCorner
+        with(shared) {
+            if (portraitPoster && (rounded || LocalArtworkOriginRounded.current)) {
+                this@sharedArt.sharedElement(content, scene, boundsTransform = bounds)
+            } else {
+                this@sharedArt.sharedBounds(content, scene,
+                    enter=fadeIn(tween(200,delayMillis=80)),exit=fadeOut(tween(160)),
+                    resizeMode=SharedTransitionScope.ResizeMode.RemeasureToBounds, boundsTransform=bounds)
+            }
+        }
+    } else {
+        radius = restingCorner
+        this
+    }
+    val clipped = artwork.clip(RoundedCornerShape(radius))
+    if (!portraitPoster || radius == ArtworkCardCorner) return clipped
+    // Grow the bottom fade from zero on a card to 12% of the full poster, in either direction.
+    val fadeFraction = .12f * (1f - radius / ArtworkCardCorner).coerceIn(0f, 1f)
+    return clipped.drawWithContent {
+        drawContent()
+        inset(left = 0f, top = size.height * (1f - fadeFraction), right = 0f, bottom = 0f) {
+            drawRect(PosterFade)
+        }
+    }
 }
 
-/** Header chrome must share the overlay layer; otherwise lifted artwork covers its gradient and controls. */
+/** Keep header text and controls above the moving artwork. */
 @Composable
-fun Modifier.sharedArtChrome(): Modifier {
+fun Modifier.sharedArtChrome(overlayOnExit: Boolean = false): Modifier {
     val shared=LocalSharedScope.current ?: return this
     val scene=LocalSceneScope.current ?: return this
     val motion=LocalMotion.current
@@ -63,8 +87,9 @@ fun Modifier.sharedArtChrome(): Modifier {
         transitionSpec={tween(180,delayMillis=if(targetState==EnterExitState.Visible) 60 else 0)},label="artwork-chrome-opacity",
     ) {if(it==EnterExitState.Visible) 1f else 0f}
     return with(shared) {
-        this@sharedArtChrome.renderInSharedTransitionScopeOverlay(zIndexInOverlay=1f)
-            .graphicsLayer {alpha=opacity.value}
+        this@sharedArtChrome.renderInSharedTransitionScopeOverlay(zIndexInOverlay=1f) {
+            isTransitionActive && (overlayOnExit || scene.transition.targetState == EnterExitState.Visible)
+        }.graphicsLayer {alpha=opacity.value}
     }
 }
 

@@ -51,6 +51,15 @@ class MyContentUiTest {
         } else node.performClick()
     }
 
+    private fun openOptions(play: SemanticsNodeInteraction, options: SemanticsNodeInteraction) {
+        val tv = compose.activity.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK == Configuration.UI_MODE_TYPE_TELEVISION
+        if (tv) {
+            play.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            play.performKeyInput { pressKey(Key.DirectionRight) }
+            options.assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        } else options.performClick()
+    }
+
     @Test fun watchedShowsGroupEpisodesAndTabsKeepNavigationAndResumeBehavior() {
         val vm=demo()
         compose.onNodeWithContentDescription("My Content").assertIsSelected()
@@ -76,6 +85,53 @@ class MyContentUiTest {
         compose.runOnUiThread {vm.back()}
         compose.waitUntil(10_000) {compose.onAllNodesWithTag("content-tab-WatchedShows").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithTag("content-tab-WatchedShows").assertIsSelected()
+    }
+
+    @Test fun episodeMenusMarkAndRemoveWithoutStartingPlayback() {
+        val vm = demo()
+        val episode = vm.catalogue.episodes("frieren", 1)[2]
+        val options = hasContentDescription("Options for season 1 episode 3, ${episode.title}")
+        compose.runOnUiThread { vm.show("frieren") }
+        compose.onNodeWithTag("details-list").performScrollToNode(options)
+        openOptions(compose.onNodeWithContentDescription("Play ${episode.title}"), compose.onNode(options))
+        compose.onNodeWithText("Remove from watch history").assertDoesNotExist()
+        activate(compose.onNodeWithText("Mark as watched"))
+        compose.waitUntil(10_000) { vm.local.value.current.progress[episode.id]?.complete == true }
+        assertNull(vm.playerEpisode.value)
+
+        compose.runOnUiThread { vm.back(); vm.openContent(ContentView.History) }
+        val row = hasTestTag("history-episode-${episode.id}")
+        compose.onNodeWithTag("content-history").performScrollToNode(row)
+        compose.onNode(row).assertTextContains("Watched · Play again")
+        openOptions(compose.onNode(row), compose.onNode(options))
+        compose.onNodeWithText("Mark as watched").assertDoesNotExist()
+        activate(compose.onNodeWithText("Remove from watch history"))
+        compose.waitUntil(10_000) { episode.id !in vm.local.value.current.progress }
+        compose.onNode(row).assertDoesNotExist()
+        assertTrue("frieren-s1-e1" in vm.local.value.current.progress)
+        assertNull(vm.playerEpisode.value)
+
+        compose.runOnUiThread { vm.show("frieren") }
+        compose.onNodeWithTag("details-list").performScrollToNode(options)
+        activate(compose.onNode(options))
+        compose.onNodeWithText("Mark as watched").assertExists()
+        compose.onNodeWithText("Remove from watch history").assertDoesNotExist()
+    }
+
+    @Test fun markingFromContinueWatchingRemovesTheResumeCard() {
+        val vm = demo()
+        val episode = vm.catalogue.episodes("frieren", 1)[1]
+        compose.runOnUiThread { vm.navigate("Home") }
+        compose.onNodeWithTag("continue-watching").performScrollTo()
+        val options = compose.onNodeWithContentDescription("Options for season 1 episode 2, ${episode.title}")
+        val card = compose.onNode(hasText("S1 E2", substring = true) and hasAnyAncestor(hasTestTag("continue-watching")))
+        openOptions(card, options)
+        compose.onNodeWithText("Remove from watch history").assertExists()
+        activate(compose.onNodeWithText("Mark as watched"))
+        compose.waitUntil(10_000) { vm.local.value.current.progress[episode.id]?.complete == true }
+        options.assertDoesNotExist()
+        assertEquals("frieren-s1-e3", vm.resumeEpisode("frieren").id)
+        assertNull(vm.playerEpisode.value)
     }
 
     @Test fun oldRoutesAndProfileHistoryOpenContentTabsAndDemoUndoKeepsItsProfile() {

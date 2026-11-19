@@ -25,8 +25,10 @@ fun mergedHistory(remote: List<HistoryEntry>,local: Map<String,Progress>,catalog
     val result=reconcileHistory(remote).associateBy {it.episode.id}.toMutableMap()
     local.forEach {(id,progress) ->
         val old=result[id]
-        if(old!=null) result[id]=old.copy(progress=resumeProgress(progress,old.progress)!!)
-        else if(progress.positionMs>0) catalogue.episode(id)?.let {episode ->catalogue.show(episode.showId)?.let {show ->result[id]=HistoryEntry(show,episode,progress)}}
+        val current = resumeProgress(progress, old?.progress)
+        if (current == null) result.remove(id)
+        else if (old != null) result[id] = old.copy(progress = current)
+        else if (current.complete || current.positionMs > 0) catalogue.episode(id)?.let {episode ->catalogue.show(episode.showId)?.let {show ->result[id]=HistoryEntry(show,episode,current)}}
     }
     return result.values.sortedByDescending {it.progress.updatedAt}
 }

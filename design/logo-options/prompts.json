@@ -1,0 +1,38 @@
+{
+  "project": "Sumi",
+  "created": "2026-11-16",
+  "mode": "Built-in image_gen tool",
+  "purpose": "Logo concepts for selection; app assets are unchanged.",
+  "palette": {
+    "orange": "#FF7A26",
+    "black": "#000000",
+    "paper": "#F5F3F0"
+  },
+  "options": [
+    {
+      "id": "01-flow",
+      "name": "Flow",
+      "file": "01-flow.png",
+      "prompt": "Use case: logo-brand.\nAsset type: exploratory logo symbol for Sumi, an independent anime streaming app for Android phones and TV.\nStyle/medium: refined minimal flat vector-style brand mark, sharp clean edges, solid shapes, thoughtful negative space, bold enough at small icon sizes.\nColor palette: a single uniform solid orange #FF7A26; all unfilled space genuinely transparent.\nComposition: one symbol only, centered in a square canvas, occupying approximately 68% of its width and height, with balanced generous transparent padding.\nConstraints: symbol only; no words, letters other than the described monogram, captions, numbers, sheet, mockup, app tile, border, gradients, shadows, lighting, 3D, texture, watermark, or extra decorative elements. Do not reproduce an existing corporate logo.\nPrimary request: Design a distinctive flowing S monogram: a broad ribbon forming a clear, upright capital S through two opposing smooth bends, with precise diagonal-cut ends and a small clean negative-space break suggesting continuous motion. Confident geometric silhouette, optically balanced, compact and contemporary. The S must read immediately without looking like a currency symbol, chain, circle, or generic lightning bolt.",
+      "refinementPrompt": "Use case: precise-object-edit.\nInput image: edit target, the orange S logo concept for Sumi.\nPrimary request: remove ALL glow, shadows, mist, lighting, gradient, white/gray background remnants, and speckled artifacts. Make it a crisp completely flat one-color orange #FF7A26 silhouette on genuinely transparent alpha. Keep the existing S silhouette, its proportions, diagonal terminals, position, size and small central gap unchanged. Every part of the orange symbol is the same opaque orange; every pixel outside the symbol and in its gap is transparent, with only normal edge antialiasing. No lighting, no halo, no white area, no paper, no background. The result is a flat logo asset, not a rendered object."
+    },
+    {
+      "id": "02-ink",
+      "name": "Ink",
+      "file": "02-ink.png",
+      "prompt": "Use case: logo-brand.\nAsset type: exploratory logo symbol for Sumi, an independent anime streaming app for Android phones and TV.\nStyle/medium: refined minimal flat vector-style brand mark, sharp clean edges, solid shapes, thoughtful negative space, bold enough at small icon sizes.\nColor palette: a single uniform solid orange #FF7A26; all unfilled space genuinely transparent.\nComposition: one symbol only, centered in a square canvas, occupying approximately 68% of its width and height, with balanced generous transparent padding.\nConstraints: symbol only; no words, letters other than the described monogram, captions, numbers, sheet, mockup, app tile, border, gradients, shadows, lighting, 3D, texture, watermark, or extra decorative elements. Do not reproduce an existing corporate logo.\nPrimary request: Design a bold compact ink-inspired symbol: a single sweeping tapered brush gesture folded into an abstract lowercase s, with an expressive rising finish. Translate calligraphic energy into a clean solid graphic silhouette with smooth controlled curves, blunt thick belly, tapered ends, and no bristles, roughness, splatters or texture. Organic, calm, memorable, strongly different from a geometric ribbon. Not an enso circle, crescent, eye, or letter C."
+    },
+    {
+      "id": "03-frame",
+      "name": "Frame",
+      "file": "03-frame.png",
+      "prompt": "Use case: logo-brand.\nAsset type: exploratory logo symbol for Sumi, an independent anime streaming app for Android phones and TV.\nStyle/medium: refined minimal flat vector-style brand mark, sharp clean edges, solid shapes, thoughtful negative space, bold enough at small icon sizes.\nColor palette: a single uniform solid orange #FF7A26; all unfilled space genuinely transparent.\nComposition: one symbol only, centered in a square canvas, occupying approximately 68% of its width and height, with balanced generous transparent padding.\nConstraints: symbol only; no words, letters other than the described monogram, captions, numbers, sheet, mockup, app tile, border, gradients, shadows, lighting, 3D, texture, watermark, or extra decorative elements. Do not reproduce an existing corporate logo.\nPrimary request: Design a cinema-portal symbol: two thick interlocking offset right-angle shapes form a compact near-square frame, with a crisp right-facing play triangle created entirely by transparent negative space in the center. Squared architectural proportions with subtly softened exterior corners, precise and balanced. Use a chunky distinctive integrated silhouette, not a standard outlined play button, television drawing, camera, or separate triangle floating in a box."
+    },
+    {
+      "id": "04-spark",
+      "name": "Spark",
+      "file": "04-spark.png",
+      "prompt": "Use case: logo-brand.\nAsset type: exploratory logo symbol for Sumi, an independent anime streaming app for Android phones and TV.\nStyle/medium: refined minimal flat vector-style brand mark, sharp clean edges, solid shapes, thoughtful negative space, bold enough at small icon sizes.\nColor palette: a single uniform solid orange #FF7A26; all unfilled space genuinely transparent.\nComposition: one symbol only, centered in a square canvas, occupying approximately 68% of its width and height, with balanced generous transparent padding.\nConstraints: symbol only; no words, letters other than the described monogram, captions, numbers, sheet, mockup, app tile, border, gradients, shadows, lighting, 3D, texture, watermark, or extra decorative elements. Do not reproduce an existing corporate logo.\nPrimary request: Design a compact asymmetric four-point spark symbol that feels like an anime motion flare: one strong sweeping point reaches right to suggest forward playback, the other three shorter points balance it, and a single elegant S-shaped transparent cut passes diagonally through the center. Bold simple silhouette, wide concave curves between the points, energetic yet refined. No tiny detached particles, multiple stars, generic lightning bolt, or circular enclosure."
+    }
+  ]
+}

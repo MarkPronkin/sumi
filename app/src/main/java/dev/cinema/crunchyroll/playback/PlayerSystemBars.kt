@@ -6,7 +6,6 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
@@ -15,6 +14,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import dev.cinema.crunchyroll.ui.CinemaWindowDialog
 
 /** Owned by the player route, so episode crossfades cannot restore the bars mid-playback. */
 @Composable
@@ -25,7 +25,7 @@ fun PlayerSystemBars(enabled: Boolean) {
 /** Dialogs have their own window and must request immersive mode independently. */
 @Composable
 internal fun PlayerDialog(onDismissRequest: ()->Unit,content: @Composable ()->Unit) {
-    Dialog(onDismissRequest=onDismissRequest,properties=DialogProperties(decorFitsSystemWindows=false)) {
+    CinemaWindowDialog(onDismissRequest=onDismissRequest,properties=DialogProperties(decorFitsSystemWindows=false)) {
         ImmersivePlayerWindow((LocalView.current.parent as? DialogWindowProvider)?.window,restoreOnDispose=false)
         content()
     }

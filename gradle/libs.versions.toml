@@ -11,7 +11,7 @@ coroutines = "1.10.2"
 splash = "1.2.0"
 okhttp = "5.2.1"
 serialization = "1.9.0"
-coil = "3.3.0"
+coil = "3.6.3"
 
 [libraries]
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose" }

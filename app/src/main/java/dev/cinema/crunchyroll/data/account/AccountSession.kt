@@ -1,6 +1,7 @@
 package dev.cinema.crunchyroll.data.account
 
 import java.util.UUID
+import dev.cinema.crunchyroll.data.HistoryEdit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -18,7 +19,10 @@ class AccountSession(private val http: CrunchyrollHttp, private val vault: Token
     private var stored: StoredSession?=null
     private var expiresAt=0L
     private var generation=0L
-    private var identityEpoch=0L
+    @Volatile internal var identityEpoch=0L
+        private set
+    private val historyWrites = Mutex()
+    private val lastHistoryEdit = mutableMapOf<Pair<Long, String>, Long>()
     private data class AccessLease(val token: String,val version: Long,val identity: Long)
 
     suspend fun restore() = lock.withLock {
@@ -95,6 +99,34 @@ class AccountSession(private val http: CrunchyrollHttp, private val vault: Token
 
     suspend fun request(path: String,query: Map<String,String> = emptyMap(),method: String="GET",body: JsonElement?=null,expectedIdentity: Long?=null): JsonElement {
         return authorizedRequest(expectedIdentity) {http.api(path,it,query,method,body)}
+    }
+
+    internal suspend fun editEpisodeHistory(accountId: String, identity: Long, episodeId: String, edit: HistoryEdit) {
+        require(episodeId.isNotBlank() && episodeId != "." && episodeId != ".." && '/' !in episodeId && '\\' !in episodeId)
+        val requestedAt = System.nanoTime()
+        historyWrites.withLock {
+            when (edit) {
+                HistoryEdit.MarkWatched -> request("content/v2/discover/$accountId/mark_as_watched/$episodeId", method = "POST", expectedIdentity = identity)
+                HistoryEdit.Remove -> try {
+                    request("content/v2/$accountId/watch-history/$episodeId", method = "DELETE", expectedIdentity = identity)
+                } catch (e: ServiceException) {
+                    if (e.status != 404) throw e // A local-only checkpoint can already be absent on the server.
+                }
+            }
+            lastHistoryEdit[identity to episodeId] = requestedAt
+        }
+    }
+
+    internal suspend fun savePlayhead(authorization: PlaybackAuthorization, episodeId: String, positionMs: Long, capturedAt: Long) {
+        historyWrites.withLock {
+            // Closing the player can leave a final checkpoint queued behind a manual history edit.
+            val editedAt = lastHistoryEdit[authorization.identity to episodeId]
+            if (editedAt != null && capturedAt <= editedAt) return
+            request("content/v2/${authorization.accountId}/playheads", method = "POST", body = buildJsonObject {
+                put("content_id", episodeId)
+                put("playhead", positionMs.coerceAtLeast(0) / 1000)
+            }, expectedIdentity = authorization.identity)
+        }
     }
     suspend fun playbackRequest(path: String,method: String="GET",body: JsonElement?=null,expectedIdentity: Long?=null): JsonElement =
         authorizedRequest(expectedIdentity) {http.playback(path,it,method,body)}

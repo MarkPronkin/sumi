@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MarkPronkin/sumi/releases/tag/v0.1.0-alpha"><img alt="Version 0.1.0 alpha" src="https://img.shields.io/badge/version-0.1.0--alpha-FF7A26"></a>
+  <a href="https://github.com/MarkPronkin/sumi/releases/tag/v0.2.0-beta"><img alt="Version 0.2.0 beta" src="https://img.shields.io/badge/version-0.2.0--beta-FF7A26"></a>
   <img alt="Android 8.0 or newer" src="https://img.shields.io/badge/Android-8.0%2B-000000">
   <img alt="Kotlin and Jetpack Compose" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-101010">
 </p>
@@ -21,6 +21,7 @@
 ## Features
 
 - **One app, three layouts.** Phones use bottom navigation, and tablets and other wide windows use a side rail. Android TV has top navigation and orange focus rings, and every screen is built for D-pad, Select, and Back.
+- **Quest widescreen panel.** Sumi uses a 16:9 viewing area for browsing and playback on Quest 1, 2, and 3. The first run enables the headset launcher. On Quest 1, reopening Sumi from the library requests a widescreen panel. Dragging its corners can change the outer frame, and Sumi centers the 16:9 content inside it.
 - **Your Crunchyroll library.** Sign in to browse the catalogue, add and remove series from your watchlist, and resume episodes from your account's saved position.
 - **My Content.** Watched shows, Watchlist, and History are grouped in one place. History shows the latest saved position for each episode.
 - **Native playback.** Episodes play in Sumi using Media3 and Android Widevine. You can choose audio and subtitle tracks and the skip interval. Next episode and skip recap, intro, and credits appear when Crunchyroll supplies the data.
@@ -32,7 +33,7 @@
 
 ## Getting started
 
-[Download the 0.1.0 alpha APK](https://github.com/MarkPronkin/sumi/releases/download/v0.1.0-alpha/sumi.apk) for Android phones, tablets, and Android TV.
+[Download the 0.2.0 beta APK](https://github.com/MarkPronkin/sumi/releases/download/v0.2.0-beta/sumi.apk) for Android phones, tablets, Android TV, and supported Quest headsets.
 
 ### Requirements
 
@@ -44,32 +45,36 @@ For command-line builds, set `JAVA_HOME` to the JDK and `ANDROID_HOME` to the An
 
 ### Build
 
+The default build produces the Sumi release-signed APK for phone, tablet, and TV installs.
+
 ```sh
 git clone https://github.com/MarkPronkin/sumi.git
 cd sumi
-./gradlew :app:assembleDebug
+./gradlew
 ```
 
-On Windows, use `gradlew.bat` instead of `./gradlew`. The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+The default task is `:app:deviceApk`. Use its output at `app/build/outputs/apk/release/app-release.apk` when sharing a build or updating an installed release. On Windows, use `gradlew.bat`.
+
+On a signing machine, Gradle uses the existing `sumi-release.p12` keystore (alias `sumi`) and `keystore.pass` in `~/.config/sumi/signing/`. To use another private directory, pass `-PsumiSigningDir=<directory>`. Contributors can build a local debug APK with `./gradlew :app:assembleDebug`.
 
 ### Install
 
-Enable USB debugging on your device, or start an emulator. Then install the APK:
+Enable USB debugging on your device, or start an emulator. Install the release build as an in-place update.
 
 ```sh
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
 Open **Sumi** from the launcher. On Android TV, it appears with your other apps.
 
 ## Using Sumi
 
-When Sumi opens, choose one of two options:
+On the welcome screen, choose **Sign in** to connect your Crunchyroll account. The **ⓘ** button in the upper-right corner shows the installed version and build and lets you open the demo.
 
 | Option | What you get |
 | --- | --- |
 | **Sign in** | Your Crunchyroll catalogue, profiles, watchlist, history, and episode playback |
-| **Explore the demo** | Sample series (*Frieren*, *Solo Leveling*, and *DAN DA DAN*) with chapters that play the Blender Foundation's *Big Buck Bunny*. Demo progress stays on the device. |
+| **ⓘ → Explore the demo** | Sample series (*Frieren*, *Solo Leveling*, and *DAN DA DAN*) with chapters that play the Blender Foundation's *Big Buck Bunny*. Demo progress stays on the device. |
 
 The app has four main sections:
 

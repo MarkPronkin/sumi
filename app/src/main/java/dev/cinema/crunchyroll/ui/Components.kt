@@ -24,10 +24,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
 import dev.cinema.crunchyroll.data.*
 import dev.cinema.crunchyroll.design.*
-import coil3.compose.AsyncImage
 import coil3.compose.SubcomposeAsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun SeriesTitle(show: Anime,fontSize: TextUnit,modifier: Modifier=Modifier,lineHeight: TextUnit=fontSize,
@@ -40,15 +42,21 @@ fun SeriesTitle(show: Anime,fontSize: TextUnit,modifier: Modifier=Modifier,lineH
     val logo=show.logoUrl.takeUnless {phone && !logoOnPhone}
     if(logo.isNullOrBlank()) fallback(modifier)
     else Box(modifier,contentAlignment=alignment) {
+        val context = LocalContext.current
+        val motion = LocalMotion.current
+        val request = remember(logo, context, motion) {
+            ImageRequest.Builder(context).data(logo)
+                .crossfade(if (motion == MotionLevel.Reduced) 0 else motion.millis(240, 160)).build()
+        }
         var loaded by remember(logo) {mutableStateOf(false)}
         var failed by remember(logo) {mutableStateOf(false)}
-        SubcomposeAsyncImage(model=logo,contentDescription=show.title,
+        SubcomposeAsyncImage(model=request,contentDescription=show.title,
             modifier=Modifier.widthIn(max=if(compact) 260.dp else if(centered) 280.dp else 420.dp).fillMaxWidth()
                 .height(if(compact || LocalCompactHeight.current) 64.dp else if(centered) 80.dp else 96.dp).testTag("series-title-logo")
                 .semantics {stateDescription=if(loaded) "Title artwork loaded" else if(failed) "Title artwork unavailable" else "Loading title artwork"},
             contentScale=ContentScale.Fit,alignment=alignment,
             onSuccess={loaded=true;failed=false},onError={failed=true;loaded=false},
-            loading={fallback(Modifier.fillMaxWidth())},error={fallback(Modifier.fillMaxWidth())})
+            loading={fallback(Modifier.fillMaxWidth().loadingSheen(onText=true))},error={fallback(Modifier.fillMaxWidth())})
     }
 }
 
@@ -142,8 +150,7 @@ fun Art(show: Anime, modifier: Modifier = Modifier, poster: Boolean = false,hero
     val candidates=show.imageUrls(poster,hero)
     var attempt by remember(show.id,candidates) {mutableIntStateOf(0)}
     val remote=candidates.getOrNull(attempt)
-    if(remote!=null) AsyncImage(model=remote,contentDescription=null,modifier=modifier.background(Surface),
-        placeholder=painterResource(dev.cinema.crunchyroll.R.drawable.ic_cinema),contentScale=scale,onError={attempt++})
+    if(remote!=null) RemoteArtwork(remote,modifier,scale,reuseCachedPoster=poster && !LocalWide.current,onError={attempt++})
     else Image(painterResource(if(poster) show.poster else show.artwork),null,modifier,
         contentScale=scale,alignment=if(show.id=="frieren") BiasAlignment(0f,-.1f) else Alignment.TopCenter)
 }
@@ -157,7 +164,7 @@ fun ShowCard(show: Anime, source: String, restore: String, landscape: Boolean = 
     val content: @Composable () -> Unit = {
         Column {
             Box(Modifier.fillMaxWidth().aspectRatio(if(landscape) 16f/9 else 2f/3).clip(RoundedCornerShape(ArtworkCardCorner)).border(1.dp,Paper.copy(alpha=.08f),RoundedCornerShape(ArtworkCardCorner))) {
-                Art(show,Modifier.fillMaxSize().sharedArt(source,rounded=true),poster=!landscape)
+                Art(show,Modifier.fillMaxSize().sharedArt(source,rounded=true,portraitPoster=!landscape && !LocalWide.current),poster=!landscape)
                 if(landscape) {
                     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color.Transparent,Oled.copy(alpha=.6f)))))
                     CinemaIcon(Glyph.Play,Paper,Modifier.align(Alignment.Center).size(28.dp))
@@ -218,7 +225,7 @@ fun EmptyState(title: String, body: String, action: String? = null, onAction: ((
 
 @Composable
 fun CinemaDialog(title: String, body: String, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    androidx.compose.ui.window.Dialog(onDismissRequest=onDismiss) {
+    CinemaWindowDialog(onDismissRequest=onDismiss) {
         Reveal {
             Column(Modifier.widthIn(max=440.dp).clip(RoundedCornerShape(24.dp)).background(Surface).padding(24.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
                 Eyebrow("SUMI · UNOFFICIAL")

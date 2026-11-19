@@ -30,9 +30,10 @@ class PreferencesUserStore(context: Context) : UserStore {
                 watchlist = prefs[stringSetPreferencesKey("${p}_list")] ?: emptySet(),
                 progress = (prefs[stringSetPreferencesKey("${p}_progress")] ?: emptySet()).mapNotNull { entry ->
                     val parts = entry.split('|')
-                    if (parts.size !in 4..5) null else {
+                    if (parts.size !in 4..6) null else {
                         val position = parts[1].toLongOrNull(); val duration = parts[2].toLongOrNull(); val time = parts[3].toLongOrNull()
-                        if (position == null || duration == null || time == null) null else parts[0] to Progress(position, duration, time,parts.getOrNull(4)=="true")
+                        val edit = HistoryEdit.entries.find { it.name == parts.getOrNull(5) }
+                        if (position == null || duration == null || time == null) null else parts[0] to Progress(position, duration, time,parts.getOrNull(4)=="true",edit)
                     }
                 }.toMap(),
                 audio = prefs[stringPreferencesKey("${p}_audio")] ?: "ja",
@@ -54,7 +55,9 @@ class PreferencesUserStore(context: Context) : UserStore {
         prefs[stringSetPreferencesKey("profile_ids")] = state.profiles.keys
         state.profiles.forEach { (p, data) ->
             prefs[stringSetPreferencesKey("${p}_list")] = data.watchlist
-            prefs[stringSetPreferencesKey("${p}_progress")] = data.progress.map { (id, v) -> "$id|${v.positionMs}|${v.durationMs}|${v.updatedAt}|${v.needsSync}" }.toSet()
+            prefs[stringSetPreferencesKey("${p}_progress")] = data.progress.map { (id, v) ->
+                "$id|${v.positionMs}|${v.durationMs}|${v.updatedAt}|${v.needsSync}" + (v.historyEdit?.let { "|${it.name}" } ?: "")
+            }.toSet()
             prefs[stringPreferencesKey("${p}_audio")] = data.audio
             prefs[stringPreferencesKey("${p}_subtitles")] = data.subtitles
             prefs[booleanPreferencesKey("${p}_autoplay")] = data.autoplay

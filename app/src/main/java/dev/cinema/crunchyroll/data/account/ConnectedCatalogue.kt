@@ -4,34 +4,47 @@ import dev.cinema.crunchyroll.R
 import dev.cinema.crunchyroll.data.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
 import java.time.Instant
 import java.time.OffsetDateTime
 
 /** The account cache is owned by one authenticated profile and discarded on every switch/logout. */
 class ConnectedCatalogue private constructor(private val session: AccountSession,private val data: Cache) : CatalogueRepository {
-    constructor(session: AccountSession): this(session,Cache())
-    private class Cache {
+    constructor(session: AccountSession): this(session,Cache(session.identityEpoch))
+    private class Cache(val identity: Long) {
         val shows=ConcurrentHashMap<String,Anime>()
         val chapters=ConcurrentHashMap<Pair<String,Int>,List<Episode>>()
         val seasons=ConcurrentHashMap<Pair<String,Int>,String>()
         val episodeIndex=ConcurrentHashMap<String,Episode>()
         val progress=ConcurrentHashMap<String,Progress>()
-        val featuredHydrated=ConcurrentHashMap.newKeySet<String>()
+        var hydratedSeries=ConcurrentHashMap.newKeySet<String>()
+        val seriesLocks=ConcurrentHashMap<String,Mutex>()
+        val completeArtwork=ConcurrentHashMap.newKeySet<String>()
         var homeIds=listOf<String>()
     }
     private val cache=data.shows
     private val chapters=data.chapters
     private val seasons=data.seasons
     private fun cacheSeries(show: Anime) {
-        cache.compute(show.id) {_,old -> show.copy(artworkUrl=show.artworkUrl ?: old?.artworkUrl,
-            posterUrl=show.posterUrl ?: old?.posterUrl,heroUrl=show.heroUrl ?: old?.heroUrl,logoUrl=show.logoUrl ?: old?.logoUrl)}
+        cache.compute(show.id) {_,old ->
+            // A watchlist or search card can update artwork while omitting the full series synopsis and seasons.
+            val metadata = if (old != null && show.id in data.hydratedSeries) old else show
+            metadata.copy(artworkUrl=show.artworkUrl ?: old?.artworkUrl, posterUrl=show.posterUrl ?: old?.posterUrl,
+                heroUrl=show.heroUrl ?: old?.heroUrl,logoUrl=show.logoUrl ?: old?.logoUrl)
+        }
+        if (show.heroUrl != null && show.logoUrl != null) data.completeArtwork.add(show.id)
     }
     fun snapshot()=ConnectedCatalogue(session,data)
     override val shows: List<Anime> get() = data.homeIds.mapNotNull(cache::get)
     override fun show(id: String)=cache[id]
     override fun episode(id: String)=data.episodeIndex[id] ?: chapters.values.asSequence().flatten().firstOrNull {it.id==id}
     fun progress(id: String)=data.progress[id]
+    suspend fun editEpisodeHistory(id: String, edit: HistoryEdit) {
+        session.editEpisodeHistory(accountId(), data.identity, id, edit)
+        data.progress.remove(id)
+    }
     override fun episodes(showId: String,season: Int)=chapters[showId to season].orEmpty()
     /** Continue Watching has an episode panel, but may never have loaded the season list. */
     suspend fun loadNext(episode: Episode,preferredAudio: String): Episode? {
@@ -52,14 +65,24 @@ class ConnectedCatalogue private constructor(private val session: AccountSession
     suspend fun home(): List<Anime> {
         val data=session.request("content/v2/discover/browse",locale+mapOf("sort_by" to "popularity","type" to "series","n" to "30","start" to "0"))
         val shows=entries(data).mapNotNull(::mapSeries).distinctBy {it.id}
-        shows.forEach(::cacheSeries);this.data.homeIds=shows.map {it.id};this.data.featuredHydrated.clear()
+        this.data.hydratedSeries=ConcurrentHashMap.newKeySet<String>()
+        this.data.completeArtwork.clear()
+        shows.forEach(::cacheSeries);this.data.homeIds=shows.map {it.id}
         return this.shows
     }
-    /** Fetch artwork for the selected spotlight, without loading seasons or hydrating every card. */
+    /** Cards with both display assets can go straight to the image cache. */
     suspend fun featured(id: String) {
-        if(id in data.featuredHydrated) return
-        entries(session.request("content/v2/cms/series/$id",locale)).firstOrNull()?.let(::mapSeries)?.let {
-            cacheSeries(it);data.featuredHydrated.add(id)
+        if(id !in data.completeArtwork) loadSeries(id)
+    }
+
+    private suspend fun loadSeries(id: String) {
+        data.seriesLocks.computeIfAbsent(id) { Mutex() }.withLock {
+            val hydrated = data.hydratedSeries
+            if(id in hydrated) return
+            val series = entries(session.request("content/v2/cms/series/$id",locale)).firstOrNull()?.let(::mapSeries) ?: return
+            if (hydrated !== data.hydratedSeries) return
+            cacheSeries(series)
+            hydrated.add(id)
         }
     }
     override suspend fun search(query: String,category: String): List<Anime> {
@@ -72,13 +95,10 @@ class ConnectedCatalogue private constructor(private val session: AccountSession
             if(obj["items"] is JsonArray) obj.array("items").toList() else listOf(item)
         }.mapNotNull(::mapSeries).distinctBy {it.id}
         items.forEach(::cacheSeries)
-        return items
+        return items.map {cache.getValue(it.id)}
     }
     suspend fun details(id: String) {
-        val data=session.request("content/v2/cms/series/$id",locale)
-        entries(data).firstOrNull()?.let(::mapSeries)?.let {updated ->
-            cacheSeries(updated);this.data.featuredHydrated.add(id)
-        }
+        loadSeries(id)
         val seasonData=session.request("content/v2/cms/series/$id/seasons",locale)
         val all=entries(seasonData).map {it.objectOrEmpty()}
         // Retain one original/primary edition per season rather than inventing dub seasons.
@@ -209,8 +229,10 @@ class ConnectedCatalogue private constructor(private val session: AccountSession
         }
         internal fun mapProgress(obj: JsonObject,duration: Long): Progress {
             val done=(obj["fully_watched"] as? JsonPrimitive)?.booleanOrNull ?: false
-            val position=if(done && duration>0) duration else ((obj["playhead"] as? JsonPrimitive)?.longOrNull ?: 0)*1000
-            return Progress(position,duration,timestamp(obj.text("last_modified").ifBlank {obj.text("date_played")}))
+            val updatedAt=timestamp(obj.text("last_modified").ifBlank {obj.text("date_played")})
+            if (done) return Progress.watched(duration, updatedAt)
+            val position=((obj["playhead"] as? JsonPrimitive)?.longOrNull ?: 0)*1000
+            return Progress(position,duration,updatedAt)
         }
         private fun timestamp(value: String): Long = value.toDoubleOrNull()?.let {if(it>1e12) it.toLong() else (it*1000).toLong()}
             ?: runCatching {Instant.parse(value).toEpochMilli()}.getOrElse {runCatching {OffsetDateTime.parse(value).toInstant().toEpochMilli()}.getOrDefault(0)}

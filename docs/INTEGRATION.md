@@ -56,9 +56,11 @@ Requests are bound to the account/profile identity that started them. A 401 from
 
 ## Title artwork
 
-`images_localized.content_logo_polychromatic` is preferred, with monochromatic artwork as a fallback. The service’s `{:param}` template is replaced with a bounded image request. Phone Home/detail headers prefer `images.poster_tall`, then localized `hero_background`, then wide artwork; tablet/TV headers prefer the clean wide hero. Image-load failure advances through these candidates. Mobile logos stay centered above the fade, while larger layouts keep them left-aligned. Browse cards keep their separate poster artwork.
+`images_localized.content_logo_polychromatic` is preferred, with monochromatic artwork as a fallback. The service’s `{:param}` template is replaced with a bounded image request. Home uses the localized hero background, then the wide artwork or portrait poster. Phone detail headers and portrait cards prefer the tall poster. Image-load failure advances through the available candidates. A missing or unavailable title logo falls back to readable text.
 
-The selected Home spotlight is hydrated through the series metadata endpoint; selecting another title fetches that title's logo/artwork without loading seasons. Requests are cancelled on retarget/profile changes, and stale results cannot update another account's UI. Browse, history hydration and watchlist responses merge artwork fields so partial cards cannot erase the selected series' poster/logo. Spotlight metadata can refresh again after a new catalogue load. Logo loading/failure retains a readable text fallback.
+After a short pause on a Home spotlight, the app prepares the adjacent banner and logo in the direction of travel. An unmetered connection also permits the opposite neighbour. A complete browse card supplies both URLs directly. A partial card shares its series metadata lookup with other requests for that show until the next Home catalogue refresh. The carousel and visible artwork use the same Coil memory and disk caches and share in-flight downloads by URL.
+
+While Home or My Content is open on an unmetered connection, the app alternates through watched and saved shows with known poster or logo URLs. It checks the disk cache first and warms missing files one at a time, at least 750 ms apart, with at most 24 attempted downloads per signed-in profile session. On later sessions, existing files leave room in the request budget for more titles. Playback and backgrounding stop this work. The disk cache evicts older artwork as space is needed.
 
 ## Credential protection and testing
 

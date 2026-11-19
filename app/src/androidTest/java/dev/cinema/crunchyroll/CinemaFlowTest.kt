@@ -34,10 +34,6 @@ class CinemaFlowTest {
             vm.navigate("Home")
         }
         compose.waitUntil(15_000) {vm.local.value.enteredDemo && vm.local.value.current.motion==dev.cinema.crunchyroll.data.MotionLevel.Maximal}
-        compose.waitUntil(15_000) {compose.onAllNodesWithText("Explore the demo").fetchSemanticsNodes().isNotEmpty() || compose.onAllNodesWithText("Sumi").fetchSemanticsNodes().isNotEmpty()}
-        if(compose.onAllNodesWithText("Explore the demo").fetchSemanticsNodes().isNotEmpty()) {
-            compose.onNodeWithText("Explore the demo").performClick()
-        }
         compose.waitUntil(10_000) {compose.onAllNodesWithContentDescription("Home").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithContentDescription("Home").performClick()
         compose.waitUntil(10_000) {compose.onAllNodesWithTag("home-banner").fetchSemanticsNodes().isNotEmpty()}
@@ -125,6 +121,88 @@ class CinemaFlowTest {
         compose.runOnUiThread {vm.back()}
     }
 
+    @Test fun spotlightDissolvesBetweenPostersAndCanReverseMidTransition() {
+        enterDemo()
+        val vm = compose.runOnIdle { ViewModelProvider(compose.activity)[CinemaViewModel::class.java] }
+        val next = compose.onNodeWithContentDescription("Next featured series")
+        val previous = compose.onNodeWithContentDescription("Previous featured series")
+        next.performScrollTo()
+        compose.waitForIdle()
+
+        // Sample the upper artwork, clear of captions and buttons on both layouts.
+        fun artworkSamples(): List<Int> {
+            val bitmap = compose.onNodeWithTag("home-banner").captureToImage().asAndroidBitmap()
+            return (1..8).flatMap { x ->
+                (1..3).map { y -> bitmap.getPixel(x * bitmap.width / 10, y * bitmap.height / 12) }
+            }
+        }
+
+        val first = artworkSamples()
+        compose.mainClock.autoAdvance = false
+        try {
+            next.performClick()
+            compose.mainClock.advanceTimeBy(176)
+            val middle = artworkSamples()
+            val selected = vm.featuredId.value
+            compose.onNodeWithContentDescription("Play demo").assertIsDisplayed()
+            compose.mainClock.advanceTimeBy(800)
+            val last = artworkSamples()
+            assertTrue("The poster must have a distinct intermediate frame",
+                middle.indices.count { middle[it] != first[it] && middle[it] != last[it] } > middle.size / 2)
+
+            previous.performClick()
+            compose.mainClock.advanceTimeBy(112)
+            next.performClick()
+            compose.mainClock.advanceTimeBy(48)
+            compose.onNodeWithContentDescription("Details for ${vm.catalogue.show(selected)!!.title}").performClick()
+            compose.mainClock.advanceTimeBy(1200)
+            assertEquals(selected, vm.detail.value)
+        } finally {
+            compose.mainClock.autoAdvance = true
+        }
+    }
+
+    @Test fun welcomeOffersSignInAndKeepsDemoInsideAppInfo() {
+        enterDemo()
+        compose.runOnUiThread { ViewModelProvider(compose.activity)[CinemaViewModel::class.java].leaveDemo() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("About Sumi").fetchSemanticsNodes().isNotEmpty() }
+        val about = compose.onNodeWithContentDescription("About Sumi")
+        val demo = compose.onNodeWithText("Explore the demo")
+        val signIn = compose.onNodeWithContentDescription("Sign in")
+        signIn.assertIsDisplayed()
+        demo.assertDoesNotExist()
+
+        compose.mainClock.autoAdvance = false
+        try {
+            signIn.performClick()
+            compose.mainClock.advanceTimeBy(64)
+            compose.onNodeWithText("Welcome to\nSumi.").assertExists()
+            compose.onNodeWithContentDescription("Account email").assertExists()
+            compose.mainClock.advanceTimeBy(1000)
+        } finally {
+            compose.mainClock.autoAdvance = true
+        }
+        compose.onNodeWithText("Welcome to\nSumi.").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Account email").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back").performClick()
+        signIn.assertIsDisplayed()
+
+        about.performClick()
+        compose.activityRule.scenario.recreate()
+        compose.onNodeWithText(BuildConfig.VERSION_NAME).assertIsDisplayed()
+        compose.onNodeWithText(BuildConfig.VERSION_CODE.toString()).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Close").performClick()
+        demo.assertDoesNotExist()
+        signIn.assertIsDisplayed()
+
+        about.performClick()
+        demo.performScrollTo().performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("home-banner").fetchSemanticsNodes().isNotEmpty() }
+        compose.activityRule.scenario.recreate()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("home-banner").fetchSemanticsNodes().isNotEmpty() }
+        about.assertDoesNotExist()
+    }
+
     @Test fun loginEntryValidatesInputAndDoesNotSavePasswordAcrossRecreation() {
         enterDemo()
         compose.onNodeWithContentDescription("Profile").performClick()
@@ -138,7 +216,7 @@ class CinemaFlowTest {
         assertEquals("",value)
         compose.onNodeWithContentDescription("Sign in to Crunchyroll",substring=false).performScrollTo().performClick()
         compose.onNodeWithText("Enter your account email and password.").assertExists()
-        compose.onNodeWithContentDescription("Back",substring=false).performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Back",substring=false).performClick()
         compose.waitUntil(10_000) {compose.onAllNodesWithText("Who’s watching?").fetchSemanticsNodes().isNotEmpty()}
     }
 

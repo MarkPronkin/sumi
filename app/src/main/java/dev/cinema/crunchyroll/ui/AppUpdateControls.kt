@@ -19,7 +19,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.cinema.crunchyroll.BuildConfig
 import dev.cinema.crunchyroll.R
@@ -63,7 +62,7 @@ internal fun AppUpdateControls(updates: AppUpdates) {
 
 @Composable
 internal fun AppUpdatesDialog(updates: AppUpdates, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
+    CinemaWindowDialog(onDismissRequest = onDismiss) {
         Column(
             Modifier.widthIn(max = 440.dp).clip(RoundedCornerShape(24.dp)).background(Surface).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

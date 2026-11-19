@@ -35,9 +35,16 @@ data class Episode(val id: String, val showId: String, val season: Int, val numb
 data class DemoProfile(val id: String, val name: String, val initial: String)
 val demoProfiles = listOf(DemoProfile("main", "Anime night", "A"), DemoProfile("guest", "Guest", "G"))
 
-data class Progress(val positionMs: Long, val durationMs: Long, val updatedAt: Long,val needsSync: Boolean=false) {
-    val fraction: Float get() = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
-    val complete: Boolean get() = durationMs > 0 && positionMs >= durationMs
+enum class HistoryEdit { MarkWatched, Remove }
+
+data class Progress(val positionMs: Long, val durationMs: Long, val updatedAt: Long, val needsSync: Boolean = false,
+    val historyEdit: HistoryEdit? = null) {
+    val complete: Boolean get() = historyEdit == HistoryEdit.MarkWatched || durationMs > 0 && positionMs >= durationMs
+    val fraction: Float get() = if (complete) 1f else if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+
+    companion object {
+        fun watched(durationMs: Long, updatedAt: Long) = Progress(durationMs, durationMs, updatedAt, historyEdit = HistoryEdit.MarkWatched)
+    }
 }
 
 data class HistoryEntry(val show: Anime,val episode: Episode,val progress: Progress)
@@ -47,10 +54,12 @@ data class EpisodeSelection(val showId: String="",val requestedSeason: Int=1,val
 
 fun resumeProgress(local: Progress?,remote: Progress?): Progress? = when {
     local?.needsSync==true -> local
+    // An acknowledged edit supersedes stale pages and playheads, including undated responses.
+    local?.historyEdit != null && (remote == null || remote.updatedAt <= local.updatedAt) -> local
     local!=null && remote!=null && remote.updatedAt>0 && local.updatedAt>remote.updatedAt -> local
     remote!=null -> remote
     else -> local
-}
+}?.takeUnless { it.historyEdit == HistoryEdit.Remove }
 
 data class ProfileData(
     val watchlist: Set<String> = emptySet(),

@@ -1,0 +1,3 @@
+<resources>
+    <bool name="quest_panel_resizable">false</bool>
+</resources>

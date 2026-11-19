@@ -89,6 +89,27 @@ class MyContentTests {
         assertEquals(listOf("solo"),watchedShows(mergedHistory(emptyList(),state.copy(activeProfile="main").current.progress,catalogue)).map {it.show.id})
     }
 
+    @Test fun `manual edits win over stale pages and new playback restores a removed episode`() {
+        val partial = entry("frieren", 2, 10)
+        val other = entry("frieren", 1, 5)
+        val watched = Progress.watched(0, 20)
+        val id = partial.episode.id
+        val marked = mergedHistory(listOf(partial, other), mapOf(id to watched), catalogue)
+        assertTrue(marked.first().progress.complete)
+        assertEquals(1f, marked.first().progress.fraction)
+        assertEquals(other, watchedShows(marked).single().resume)
+        assertEquals(id, mergedHistory(emptyList(), mapOf(id to watched), catalogue).single().episode.id)
+
+        val removed = Progress(0, 0, 30, historyEdit = HistoryEdit.Remove)
+        for (timestamp in listOf(0L, 10L, 30L)) {
+            val stale = partial.copy(progress = partial.progress.copy(updatedAt = timestamp))
+            assertNull(resumeProgress(removed, stale.progress))
+            assertEquals(listOf(other), mergedHistory(listOf(stale, other), mapOf(id to removed), catalogue))
+        }
+        val replayed = partial.copy(progress = partial.progress.copy(updatedAt = 40))
+        assertEquals(listOf(replayed, other), mergedHistory(listOf(replayed, other), mapOf(id to removed), catalogue))
+    }
+
     @Test fun `legacy saved destinations select the matching content tab`() {
         assertEquals(ContentView.Watchlist,ContentView.fromLegacyRoute("My List"))
         assertEquals(ContentView.Watchlist,ContentView.fromLegacyRoute("Watchlist"))

@@ -74,11 +74,8 @@ class NativePlaybackService(private val session: AccountSession,private val skip
         if(stream.videoToken.isNotBlank() && stream.usesStreamLimits)
             session.releasePlayback("v1/token/${stream.contentId}/${encode(stream.videoToken)}",stream.authorization)
     }
-    suspend fun saveProgress(stream: NativeStream,episodeId: String,positionMs: Long) {
-        session.request("content/v2/${stream.authorization.accountId}/playheads",method="POST",body=buildJsonObject {
-            put("content_id",episodeId);put("playhead",positionMs.coerceAtLeast(0)/1000)
-        },expectedIdentity=stream.authorization.identity)
-    }
+    suspend fun saveProgress(stream: NativeStream,episodeId: String,positionMs: Long,capturedAt: Long = System.nanoTime()) =
+        session.savePlayhead(stream.authorization, episodeId, positionMs, capturedAt)
     companion object {
         private fun encode(value: String)=URLEncoder.encode(value,"UTF-8").replace("+","%20")
         internal fun parse(id: String,body: JsonObject,authorization: PlaybackAuthorization): NativeStream {

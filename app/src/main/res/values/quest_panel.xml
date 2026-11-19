@@ -1,0 +1,5 @@
+<resources>
+    <!-- Quest 1's Android 10 shell can supply any shape. Give Compose the entire
+         panel so it can center the 16:9 content after a corner drag. -->
+    <bool name="quest_panel_resizable">true</bool>
+</resources>

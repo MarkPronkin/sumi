@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Sumi</string>
+    <string name="welcome_heading">Welcome to</string>
+    <string name="welcome_sign_in">Sign in</string>
+    <string name="welcome_description">Sign in with your Crunchyroll account to start watching.</string>
+    <string name="welcome_about">About Sumi</string>
+    <string name="welcome_about_description">An independent, unofficial Crunchyroll client.</string>
+    <string name="welcome_version">Version</string>
+    <string name="welcome_build">Build</string>
+    <string name="welcome_demo">Explore the demo</string>
+    <string name="welcome_demo_description">Try the app with a sample library. Your demo progress stays on this device.</string>
     <string name="app_updates">App updates</string>
     <string name="update_installed_version">Installed version %1$s</string>
     <string name="update_check">Check for updates</string>

@@ -72,7 +72,8 @@ class PlaybackEngine(application: Application) : AndroidViewModel(application) {
     @Volatile private var effectGeneration=0L
     private var synced: ((String,String,Long)->Unit)?=null
     private var pendingRelease: Job?=null
-    private data class Checkpoint(val backend: NativePlaybackService,val descriptor: NativeStream,val episode: String,val position: Long,val profile: String)
+    private data class Checkpoint(val backend: NativePlaybackService,val descriptor: NativeStream,val episode: String,val position: Long,val profile: String,
+        val capturedAt: Long = System.nanoTime())
     private val pendingCheckpoint=AtomicReference<Checkpoint?>(null)
     private val checkpointWorker=AtomicBoolean(false)
 
@@ -333,7 +334,7 @@ class PlaybackEngine(application: Application) : AndroidViewModel(application) {
             try {
                 while(true) {
                     val next=pendingCheckpoint.getAndSet(null) ?: break
-                    try {withTimeout(10_000) {next.backend.saveProgress(next.descriptor,next.episode,next.position)};synced?.invoke(next.profile,next.episode,next.position);state.update {it.copy(progressError=false)}}
+                    try {withTimeout(10_000) {next.backend.saveProgress(next.descriptor,next.episode,next.position,next.capturedAt)};synced?.invoke(next.profile,next.episode,next.position);state.update {it.copy(progressError=false)}}
                     catch(_: Exception) {state.update {it.copy(progressError=true)}}
                 }
             } finally {checkpointWorker.set(false);if(pendingCheckpoint.get()!=null) drainCheckpoints()}

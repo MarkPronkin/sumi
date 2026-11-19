@@ -3,6 +3,8 @@ package dev.cinema.crunchyroll
 import dev.cinema.crunchyroll.data.*
 import dev.cinema.crunchyroll.data.account.*
 import dev.cinema.crunchyroll.playback.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import okhttp3.mockwebserver.*
@@ -58,6 +60,45 @@ class LibraryTests {
             assertEquals(47_000,result.getValue("episode-fixture").positionMs)
             assertTrue(result.getValue("episode-fixture").updatedAt>0)
             assertTrue(server.takeRequest().path!!.contains("content_ids=episode-fixture"))
+        }
+    }
+    @Test fun `history edits target one episode and take precedence over queued player checkpoints`() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            val session = authenticated(server)
+            val repo = ConnectedCatalogue(session)
+            val episode = Episode("episode-fixture", "series", 1, 1, "Episode")
+            val auth = session.playbackAuthorization()
+            val beforeEdit = System.nanoTime()
+            server.reply("""{"data":[{"content_id":"episode-fixture","playhead":12}]}""")
+            repo.playheads(listOf(episode))
+            server.takeRequest()
+
+            server.enqueue(MockResponse().setResponseCode(503))
+            try { repo.editEpisodeHistory(episode.id, HistoryEdit.Remove); fail("Expected failed deletion") }
+            catch (e: ServiceException) { assertEquals(503, e.status) }
+            assertEquals(12_000L, repo.progress(episode.id)?.positionMs)
+            server.takeRequest()
+
+            server.enqueue(MockResponse().setResponseCode(204))
+            repo.editEpisodeHistory(episode.id, HistoryEdit.MarkWatched)
+            val mark = server.takeRequest()
+            assertEquals("POST", mark.method)
+            assertEquals("/content/v2/discover/account-fixture/mark_as_watched/episode-fixture", mark.requestUrl!!.encodedPath)
+
+            server.enqueue(MockResponse().setResponseCode(204))
+            repo.editEpisodeHistory(episode.id, HistoryEdit.Remove)
+            val remove = server.takeRequest()
+            assertEquals("DELETE", remove.method)
+            assertEquals("/content/v2/account-fixture/watch-history/episode-fixture", remove.requestUrl!!.encodedPath)
+            assertNull(repo.snapshot().progress(episode.id))
+
+            val requests = server.requestCount
+            session.savePlayhead(auth, episode.id, 12_000, beforeEdit)
+            assertEquals(requests, server.requestCount)
+            server.enqueue(MockResponse().setResponseCode(204))
+            session.savePlayhead(auth, episode.id, 3_000, System.nanoTime())
+            assertEquals("POST", server.takeRequest().method)
         }
     }
     @Test fun `continue watching resolves and caches the next episode without opening series details`() = runBlocking {
@@ -131,15 +172,19 @@ class LibraryTests {
             repo.home()
             assertTrue(server.takeRequest().path!!.contains("/browse"))
             assertEquals(4,server.requestCount)
-            server.reply("""{"data":[{"id":"two","type":"series","title":"Two","images":{"poster_tall":[[{"source":"https://cdn.example.invalid/portrait.jpg","width":600}]]},"images_localized":{"content_logo_polychromatic":{"url":"https://cdn.example.invalid/logo.png"}}}]}""")
+            server.reply("""{"data":[{"id":"two","type":"series","title":"Two","description":"Full series synopsis","images":{"poster_tall":[[{"source":"https://cdn.example.invalid/portrait.jpg","width":600}]]},"images_localized":{"content_logo_polychromatic":{"url":"https://cdn.example.invalid/logo.png"}}}]}""")
             repo.featured("two")
             assertTrue(server.takeRequest().path!!.contains("/cms/series/two"))
             repo.featured("two")
             assertEquals(5,server.requestCount)
             server.reply("""{"data":[{"panel":{"id":"two","type":"series","title":"Two"}}]}""")
             val saved=repo.watchlist().single()
+            assertEquals("Full series synopsis",saved.synopsis)
             assertEquals("https://cdn.example.invalid/portrait.jpg",saved.posterUrl)
             assertEquals("https://cdn.example.invalid/logo.png",saved.logoUrl)
+            server.takeRequest()
+            server.reply(cards)
+            assertEquals(saved,repo.search("Two","All").single {it.id=="two"})
             server.takeRequest()
             server.reply(cards)
             repo.home()
@@ -152,5 +197,41 @@ class LibraryTests {
             assertEquals("https://cdn.example.invalid/updated-logo.png",repo.show("two")!!.logoUrl)
             assertEquals(saved.posterUrl,repo.show("two")!!.posterUrl)
         }
+    }
+
+    @Test fun `selecting a preloading spotlight shares metadata and complete cards need no lookup`() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            val repo = ConnectedCatalogue(authenticated(server))
+            server.reply("""{"data":[{"id":"ready","title":"Ready","images_localized":{"hero_background":{"url":"https://cdn.example.invalid/hero"},"content_logo_polychromatic":{"url":"https://cdn.example.invalid/logo"}}},{"id":"next","title":"Next"}]}""")
+            repo.home()
+            repo.featured("ready")
+            assertEquals(4, server.requestCount)
+            server.reply("""{"data":[{"id":"next","title":"Next","images_localized":{"content_logo_polychromatic":{"url":"https://cdn.example.invalid/next"}}}]}""")
+            listOf(async { repo.featured("next") }, async { repo.snapshot().featured("next") }).awaitAll()
+            assertEquals(5, server.requestCount)
+            assertEquals("https://cdn.example.invalid/next", repo.show("next")!!.logoUrl)
+            server.reply("""{"data":[]}""")
+            repo.details("next")
+            assertEquals(6, server.requestCount)
+            assertTrue(server.takeRequest().path!!.contains("/browse"))
+            assertTrue(server.takeRequest().path!!.contains("/cms/series/next?"))
+            assertTrue(server.takeRequest().path!!.contains("/cms/series/next/seasons"))
+        }
+    }
+
+    @Test fun `adjacent slides wrap and library artwork alternates watched and saved series`() {
+        val (a,b,c) = DemoCatalogue().shows
+        val shows = listOf(a,b,c)
+        assertEquals(listOf(b.id,c.id), spotlightNeighbours(shows, a.id, 1))
+        assertEquals(listOf(c.id,b.id), spotlightNeighbours(shows, a.id, -1))
+        assertEquals(listOf(b.id), spotlightNeighbours(listOf(a,b), a.id, 1))
+        assertTrue(spotlightNeighbours(listOf(a), a.id, 1).isEmpty())
+        assertTrue(spotlightNeighbours(shows, "absent", 1).isEmpty())
+        val watched = a.copy(posterUrl="poster-a", logoUrl="logo-a")
+        val other = c.copy(posterUrl="poster-c", logoUrl=" ")
+        val saved = b.copy(posterUrl="poster-b", logoUrl="logo-b")
+        assertEquals(listOf("poster-a","logo-a","poster-b","logo-b","poster-c"),
+            libraryArtworkUrls(listOf(watched,other), listOf(saved,watched)))
     }
 }

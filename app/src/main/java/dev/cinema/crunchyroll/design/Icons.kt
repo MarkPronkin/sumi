@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.unit.dp
 
-enum class Glyph { Home, Search, List, Profile, Play, Pause, Plus, Check, Back, Close, Settings, History, Chevron, Rewind, Forward, Tracks, Refresh, Info }
+enum class Glyph { Home, Search, List, Profile, Play, Pause, Plus, Check, Back, Close, Settings, History, Chevron, Rewind, Forward, Tracks, Refresh, Info, More }
 
 @Composable
 fun CinemaIcon(glyph: Glyph, tint: Color = Paper, modifier: Modifier = Modifier) {
@@ -25,6 +25,7 @@ fun CinemaIcon(glyph: Glyph, tint: Color = Paper, modifier: Modifier = Modifier)
                 drawPath(p, tint, style = stroke)
             }
             when (glyph) {
+                Glyph.More -> for (y in listOf(5f, 12f, 19f)) drawCircle(tint, 1.8f, Offset(12f, y))
                 Glyph.Home -> { path(3f,10f,12f,3f,21f,10f); path(5f,9f,5f,21f,10f,21f,10f,14f,14f,14f,14f,21f,19f,21f,19f,9f) }
                 Glyph.Search -> { drawCircle(tint,7f,Offset(10f,10f),style=stroke);line(15f,15f,21f,21f) }
                 Glyph.List -> { path(6f,3f,18f,3f,18f,21f,12f,17f,6f,21f,6f,3f) }

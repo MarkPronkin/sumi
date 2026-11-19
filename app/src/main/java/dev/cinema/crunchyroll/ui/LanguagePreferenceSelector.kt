@@ -24,7 +24,6 @@ import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import dev.cinema.crunchyroll.data.LanguageOption
 import dev.cinema.crunchyroll.data.LanguagePreferences
 import dev.cinema.crunchyroll.design.*
@@ -59,7 +58,7 @@ internal fun LanguagePreferenceSelector(
         val list = rememberLazyListState(initialFirstVisibleItemIndex = index)
         val focus = remember { FocusRequester() }
         val tv = LocalTv.current
-        Dialog(onDismissRequest = { expanded = false }) {
+        CinemaWindowDialog(onDismissRequest = { expanded = false }) {
             val inputMode = LocalInputModeManager.current
             val windowFocused = LocalWindowInfo.current.isWindowFocused
             Column(

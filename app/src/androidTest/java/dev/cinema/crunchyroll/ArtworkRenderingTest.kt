@@ -5,6 +5,7 @@ import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
@@ -18,13 +19,80 @@ import dev.cinema.crunchyroll.design.CinemaTheme
 import dev.cinema.crunchyroll.data.MotionLevel
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.semantics.SemanticsProperties
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.annotation.DelicateCoilApi
+import coil3.intercept.Interceptor
+import kotlinx.coroutines.CompletableDeferred
 import java.io.File
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
 /** Checks the pixels loaded by Coil, so a tall viewport cannot hide a landscape-source regression. */
 class ArtworkRenderingTest {
     @get:Rule val compose=createComposeRule()
+
+    @OptIn(DelicateCoilApi::class)
+    @Test fun pendingPosterAndTitleShimmerUntilResolvedAndRespectReducedMotion() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val originalLoader = SingletonImageLoader.get(context)
+        val release = CompletableDeferred<Unit>()
+        val loader = ImageLoader.Builder(context).components {
+            add(Interceptor { chain ->
+                release.await()
+                chain.proceed()
+            })
+        }.build()
+        val resource = "android.resource://${context.packageName}"
+        val show = Anime("pending", "Waiting for artwork", "", "", 2026, listOf("Anime"), R.drawable.ic_cinema,
+            posterUrl = "$resource/${R.drawable.frieren_poster}", logoUrl = "$resource/${R.drawable.ic_sumi_mark}")
+        var motion by mutableStateOf(MotionLevel.Maximal)
+        fun frame(tag: String) = compose.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
+
+        SingletonImageLoader.setUnsafe(loader)
+        compose.mainClock.autoAdvance = false
+        try {
+            compose.setContent {
+                CinemaTheme(motion, false, false) {
+                    Column {
+                        Art(show, Modifier.size(140.dp, 210.dp).testTag("poster"), poster = true)
+                        SeriesTitle(show, 32.sp, logoOnPhone = true, compact = true)
+                    }
+                }
+            }
+            compose.mainClock.advanceTimeBy(32)
+            compose.onNodeWithText(show.title, useUnmergedTree = true).assertIsDisplayed()
+            val poster = frame("poster")
+            val title = frame("series-title-logo")
+            compose.mainClock.advanceTimeBy(880)
+            assertFalse("The pending poster has a moving highlight", poster.sameAs(frame("poster")))
+            assertFalse("The readable title has a moving highlight", title.sameAs(frame("series-title-logo")))
+
+            compose.runOnIdle { motion = MotionLevel.Reduced }
+            compose.mainClock.advanceTimeBy(32)
+            val stillPoster = frame("poster")
+            val stillTitle = frame("series-title-logo")
+            compose.mainClock.advanceTimeBy(880)
+            assertTrue(stillPoster.sameAs(frame("poster")))
+            assertTrue(stillTitle.sameAs(frame("series-title-logo")))
+
+            release.complete(Unit)
+            compose.mainClock.autoAdvance = true
+            compose.waitUntil(10_000) {
+                compose.onNodeWithTag("series-title-logo").fetchSemanticsNode().config
+                    .getOrElse(SemanticsProperties.StateDescription) { "" } == "Title artwork loaded"
+                    && !stillPoster.sameAs(frame("poster"))
+            }
+            compose.onNodeWithText(show.title, useUnmergedTree = true).assertDoesNotExist()
+        } finally {
+            release.complete(Unit)
+            compose.mainClock.autoAdvance = true
+            SingletonImageLoader.setUnsafe(originalLoader)
+            loader.shutdown()
+        }
+    }
 
     @Test fun titleLogoUsesReadableFallbackForMissingOrFailedArtwork() {
         val cache=InstrumentationRegistry.getInstrumentation().targetContext.cacheDir

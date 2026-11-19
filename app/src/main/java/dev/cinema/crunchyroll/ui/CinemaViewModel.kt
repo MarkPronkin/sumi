@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -61,6 +62,8 @@ class CinemaViewModel(application: Application, private val saved: SavedStateHan
     private var detailRevision=0L
     private var restartEpisode: String?=null
     private var accountEpoch=0L
+    internal var artworkPrefetcher = ArtworkPrefetcher(application)
+        private set
     private val searchRepository=MutableStateFlow(catalogue)
     val isConnected get()=account.value is AccountState.SignedIn
     val accountPreferenceKey: String? get()=(account.value as? AccountState.SignedIn)?.account?.let {"account:${it.accountId}:${it.profileId ?: "primary"}"}
@@ -71,6 +74,8 @@ class CinemaViewModel(application: Application, private val saved: SavedStateHan
     val destination = saved.getStateFlow("destination", "Home")
     val contentView = saved.getStateFlow("contentView", ContentView.WatchedShows.name)
     val featuredId = saved.getStateFlow("featuredId",catalogue.shows.random().id)
+    var featuredDirection = 1
+        private set
     val detail = saved.getStateFlow<String?>("detail", null)
     val origin = saved.getStateFlow("origin", "home-hero")
     val artworkOriginRounded = saved.getStateFlow("artworkOriginRounded", true)
@@ -82,6 +87,7 @@ class CinemaViewModel(application: Application, private val saved: SavedStateHan
     val results = searchRepository.flatMapLatest { repo -> searchResults(combine(query, category, retry) { q, c, r -> SearchRequest(q, c, r) }, repo) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LoadState.Loading)
     val busy = MutableStateFlow<Set<String>>(emptySet())
+    val editingHistory = MutableStateFlow<Set<Pair<String, String>>>(emptySet())
     private val notices = Channel<Notice>(Channel.BUFFERED)
     val messages = notices.receiveAsFlow()
     internal val appUpdates = AppUpdates(application, viewModelScope)
@@ -152,17 +158,20 @@ class CinemaViewModel(application: Application, private val saved: SavedStateHan
         if(shows.isEmpty()) return
         val current=shows.indexOfFirst {it.id==featuredId.value}
         val selected=if(current<0) shows.random() else shows[Math.floorMod(current+direction,shows.size)]
+        featuredDirection = if (direction < 0) -1 else 1
         saved["featuredId"]=selected.id
         hydrateFeatured(selected.id)
     }
     private fun hydrateFeatured(id: String) {
         val repo=catalogue as? ConnectedCatalogue ?: return
         val epoch=accountEpoch
+        val previous=repo.show(id)
         featuredJob?.cancel()
         featuredJob=viewModelScope.launch {
             try {
+                delay(100) // A quick run of button presses only needs metadata for the settled slide.
                 repo.featured(id)
-                if(epoch==accountEpoch && featuredId.value==id) catalogue=repo.snapshot()
+                if(epoch==accountEpoch && featuredId.value==id && repo.show(id)!=previous) catalogue=repo.snapshot()
             } catch(e: CancellationException) {throw e}
             catch(_: Exception) { /* Keep the catalogue artwork and readable title on a metadata failure. */ }
         }
@@ -226,6 +235,7 @@ class CinemaViewModel(application: Application, private val saved: SavedStateHan
         }
     }
     private fun activateConnected() {
+        artworkPrefetcher = ArtworkPrefetcher(getApplication())
         accountEpoch++;contentJob?.cancel();featuredJob?.cancel();detailsJob?.cancel();watchlistJob?.cancel();historyJob?.cancel();clearRatings();homeRefreshedAt=null
         saved["detail"]=null;saved["player"]=null
         if(destination.value!="My Content") saved["destination"]="Home"
@@ -261,7 +271,8 @@ class CinemaViewModel(application: Application, private val saved: SavedStateHan
             try {
                 repo.details(id)
                 val available=repo.show(id)?.seasonNumbers.orEmpty()
-                val recent=connectedHistory.value.firstOrNull {it.show.id==id && it.progress.positionMs>0 && !it.progress.complete}?.episode?.season
+                val progress = local.value.profiles[accountPreferenceKey]?.progress.orEmpty()
+                val recent=mergedHistory(connectedHistory.value, progress, repo).firstOrNull {it.show.id==id && it.progress.positionMs>0 && !it.progress.complete}?.episode?.season
                 val selected=(saved.get<Int>("season:$id") ?: recent ?: available.firstOrNull() ?: 1).takeIf {available.isEmpty() || it in available} ?: available.first()
                 if(repo.episodes(id,selected).isEmpty()) repo.loadEpisodes(id,selected)
                 if(epoch==accountEpoch && revision==detailRevision) {
@@ -349,13 +360,50 @@ class CinemaViewModel(application: Application, private val saved: SavedStateHan
     }
     fun retryHistory()=refreshHistory(historyRetryLoadMore)
 
-    fun progressFor(episode: Episode): Progress? {
-        val profile=accountPreferenceKey ?: local.value.activeProfile
-        return resumeProgress(local.value.profiles[profile]?.progress?.get(episode.id),(catalogue as? ConnectedCatalogue)?.progress(episode.id))
+    fun progressFor(episode: Episode, profile: ProfileData): Progress? =
+        resumeProgress(profile.progress[episode.id], (catalogue as? ConnectedCatalogue)?.progress(episode.id))
+
+    fun editEpisodeHistory(profileId: String, episode: Episode, edit: HistoryEdit) {
+        val repo = catalogue as? ConnectedCatalogue
+        val epoch = accountEpoch
+        fun activeProfile() = epoch == accountEpoch && profileId == (accountPreferenceKey ?: local.value.activeProfile)
+        val key = profileId to episode.id
+        if (!activeProfile() || isConnected != (repo != null) || key in editingHistory.value) return
+        editingHistory.value += key
+        viewModelScope.launch {
+            try {
+                repo?.editEpisodeHistory(episode.id, edit)
+                val updatedAt = System.currentTimeMillis()
+                withContext(NonCancellable) {
+                    store.update { state ->
+                        state.updateProfile(profileId) { profile ->
+                            val previous = profile.progress[episode.id]
+                            val progress = when (edit) {
+                                HistoryEdit.MarkWatched -> Progress.watched(episode.durationMs.takeIf { it > 0 } ?: previous?.durationMs ?: 0, updatedAt)
+                                HistoryEdit.Remove -> if (repo == null) null else Progress(0, 0, updatedAt, historyEdit = edit)
+                            }
+                            profile.copy(progress = if (progress == null) profile.progress - episode.id else profile.progress + (episode.id to progress))
+                        }
+                    }
+                }
+                if (activeProfile()) {
+                    if (repo != null) refreshHistory()
+                    notices.send(Notice(if (edit == HistoryEdit.MarkWatched) "Marked as watched" else "Removed from watch history"))
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                if (activeProfile()) notices.send(Notice(if (repo == null) "Couldn’t save watch history on this device." else e.accountMessage(),
+                    { if (activeProfile()) editEpisodeHistory(profileId, episode, edit) }, "Retry", false))
+            } finally {
+                editingHistory.value -= key
+            }
+        }
     }
     suspend fun playbackPosition(episode: Episode,profileId: String): Long {
+        val key = profileId to episode.id
+        editingHistory.first { key !in it }
         if(restartEpisode==episode.id) return 0
-        val current=local.value.profiles[profileId]?.progress?.get(episode.id)
+        val current=store.state.first().profiles[profileId]?.progress?.get(episode.id)
         if(current?.needsSync==true) return if(current.complete) 0 else current.positionMs.coerceAtLeast(0)
         val repo=catalogue as? ConnectedCatalogue
         val remote=repo?.playheads(listOf(episode))?.get(episode.id)
@@ -429,10 +477,13 @@ class CinemaViewModel(application: Application, private val saved: SavedStateHan
             p.copy(progress = p.progress + (episodeId to Progress(positionMs.coerceAtMost(durationMs), durationMs, System.currentTimeMillis(),profileId.startsWith("account:"))))
         } }
     }
-    fun resumeEpisode(showId: String): Episode = local.value.current.progress.entries
-        .filter { catalogue.episode(it.key)?.showId == showId && !it.value.complete }
-        .maxByOrNull { it.value.updatedAt }?.let { catalogue.episode(it.key) }
-        ?: catalogue.episodes(showId, 1).first()
+    fun resumeEpisode(showId: String): Episode {
+        val progress = local.value.current.progress
+        val episodes = (1..(catalogue.show(showId)?.seasons ?: 1)).flatMap { catalogue.episodes(showId, it) }
+        return episodes.filter { progress[it.id]?.let { p -> p.positionMs > 0 && !p.complete } == true }
+            .maxByOrNull { progress.getValue(it.id).updatedAt }
+            ?: episodes.firstOrNull { progress[it.id]?.complete != true } ?: episodes.first()
+    }
 
     private fun write(transform: (LocalState) -> LocalState) = viewModelScope.launch {
         try { store.update(transform) }

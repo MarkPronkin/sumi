@@ -5,9 +5,12 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.cinema.crunchyroll.data.*
@@ -15,6 +18,7 @@ import dev.cinema.crunchyroll.data.account.AccountState
 import dev.cinema.crunchyroll.ui.CinemaViewModel
 import java.io.File
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -40,26 +44,7 @@ class MobileBannerTest {
         }
         val show=Anime("banner-fixture","JUJUTSU KAISEN","","Poster layout preview.",2020,listOf("Anime"),R.drawable.ic_cinema,
             seasons=4,posterUrl=poster.toURI().toString(),heroUrl=hero.toURI().toString(),logoUrl=logo.toURI().toString())
-        val repository=object: CatalogueRepository {
-            override val shows=listOf(show)
-            override suspend fun search(query: String,category: String)=shows
-            override fun episodes(showId: String,season: Int)=emptyList<Episode>()
-        }
-        lateinit var vm: CinemaViewModel
-        compose.runOnUiThread {vm=ViewModelProvider(compose.activity)[CinemaViewModel::class.java]}
-        compose.waitUntil(30_000) {vm.account.value !is AccountState.Restoring && vm.ready.value}
-        if(vm.isConnected) {
-            compose.runOnUiThread {vm.logout()}
-            compose.waitUntil(15_000) {!vm.isConnected}
-        }
-        compose.runOnUiThread {
-            vm.enterDemo();vm.preferences {it.copy(motion=MotionLevel.Reduced)}
-            // Keep fixture injection confined to instrumentation rather than adding a production override.
-            CinemaViewModel::class.java.getDeclaredMethod("setCatalogue",CatalogueRepository::class.java).apply {isAccessible=true}.invoke(vm,repository)
-            vm.navigate("Home")
-        }
-        compose.waitUntil(15_000) {compose.onAllNodesWithTag("home-banner").fetchSemanticsNodes().isNotEmpty()}
-        compose.waitForIdle()
+        showFixture(show, MotionLevel.Reduced)
         assertLogoLoaded()
         val banner=compose.onNodeWithTag("home-banner").fetchSemanticsNode().boundsInRoot
         assertTrue("Mobile Home should use a shallow 16:9 landscape banner",kotlin.math.abs(banner.width/banner.height-16f/9)<.02f)
@@ -102,6 +87,203 @@ class MobileBannerTest {
         compose.onNodeWithContentDescription("Back to catalogue").performClick()
         compose.waitUntil(10_000) {compose.onAllNodesWithTag("home-banner").fetchSemanticsNodes().isNotEmpty()}
         assertLogoLoaded()
+    }
+
+    @Test fun portraitPosterStaysBrightBetweenTheWatchlistAndDetails() {
+        val config = compose.activity.resources.configuration
+        val isTv = config.uiMode and Configuration.UI_MODE_TYPE_MASK == Configuration.UI_MODE_TYPE_TELEVISION
+        assumeTrue(config.screenWidthDp < 600 && !isTv)
+        val show = greenPosterFixture()
+        val vm = showFixture(show, MotionLevel.Maximal)
+        compose.runOnIdle {
+            vm.toggleList(show.id, true)
+            vm.openContent(ContentView.Watchlist)
+        }
+
+        // Sample the root because shared artwork is drawn outside the card and detail nodes.
+        fun brightPosterArea(): Int {
+            val frame = compose.onRoot().captureToImage().toPixelMap()
+            var samples = 0
+            for (y in 0 until frame.height step 12) {
+                for (x in 0 until frame.width step 12) {
+                    val pixel = frame[x, y]
+                    if (pixel.green > .95f && pixel.red < .05f && pixel.blue < .05f) samples++
+                }
+            }
+            return samples
+        }
+
+        val card = compose.onNodeWithContentDescription("Open ${show.title}")
+        compose.waitUntil(10_000) { card.isDisplayed() && brightPosterArea() > 100 }
+        val cardCenter = card.fetchSemanticsNode().boundsInRoot.center.x.toInt()
+        fun transitionFrames(): List<Int> {
+            val start = compose.mainClock.currentTime
+            return listOf(32L, 80L, 128L, 192L, 288L).map { elapsed ->
+                compose.mainClock.advanceTimeBy(start + elapsed - compose.mainClock.currentTime)
+                if (elapsed in 128L..192L) assertSoftPosterEdge(cardCenter)
+                brightPosterArea()
+            }
+        }
+
+        val cardArea = brightPosterArea()
+        compose.mainClock.autoAdvance = false
+        try {
+            card.performClick()
+            val opening = transitionFrames()
+            compose.mainClock.advanceTimeBy(1000)
+            val detailArea = brightPosterArea()
+            assertTrue("The poster must stay visible throughout opening: $cardArea -> $opening",
+                opening.all { it >= cardArea * .90f })
+            assertTrue("The poster must expand through intermediate sizes: $opening -> $detailArea",
+                opening.any { it > cardArea * 1.2f && it < detailArea * .9f })
+            compose.onNodeWithContentDescription("Back to catalogue").performClick()
+            val closing = transitionFrames()
+            assertTrue("The poster must stay visible throughout return: $closing -> $cardArea",
+                closing.all { it >= cardArea * .90f })
+        } finally {
+            compose.mainClock.autoAdvance = true
+            compose.runOnIdle { vm.toggleList(show.id, false) }
+        }
+    }
+
+    @Test fun spotlightKeepsItsBottomFadeWhileOpeningDetails() {
+        val show = greenPosterFixture()
+        showFixture(show, MotionLevel.Maximal)
+        val banner = compose.onNodeWithTag("home-banner")
+        compose.waitUntil(10_000) {
+            val frame = banner.captureToImage().toPixelMap()
+            frame[frame.width * 4 / 5, frame.height / 4].green > .9f
+        }
+        val bounds = banner.fetchSemanticsNode().boundsInRoot
+        val x = (bounds.left + bounds.width * .72f).toInt()
+        compose.mainClock.autoAdvance = false
+        try {
+            compose.onNodeWithContentDescription("Details for ${show.title}").performClick()
+            listOf(80L, 96L, 128L).forEach {
+                compose.mainClock.advanceTimeBy(it)
+                assertSoftPosterEdge(x)
+            }
+        } finally {
+            compose.mainClock.autoAdvance = true
+        }
+    }
+
+    @Test fun returningToPosterCardClearsDetailTextWhileThePosterMoves() {
+        val show = greenPosterFixture()
+        val vm = showFixture(show, MotionLevel.Maximal)
+        compose.runOnIdle {
+            vm.preferences { it.copy(watchlist = it.watchlist + show.id) }
+            vm.openContent(ContentView.Watchlist)
+        }
+        try {
+            val card = compose.onNode(hasText(show.title) and hasAnyAncestor(hasTestTag("content-watchlist")))
+            val isTv = compose.activity.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK == Configuration.UI_MODE_TYPE_TELEVISION
+            checkTextOnReturn(card, open = {
+                if (isTv) {
+                    card.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+                    card.performKeyInput { pressKey(Key.DirectionCenter) }
+                } else card.performClick()
+            }) { compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() } }
+        } finally {
+            compose.runOnIdle { vm.preferences { it.copy(watchlist = it.watchlist - show.id) } }
+        }
+    }
+
+    @Test fun returningToSpotlightClearsDetailTextWhileThePosterMoves() {
+        val show = greenPosterFixture()
+        showFixture(show, MotionLevel.Maximal)
+        checkTextOnReturn(compose.onNodeWithContentDescription("Details for ${show.title}")) {
+            compose.onNodeWithContentDescription("Back to catalogue").performClick()
+        }
+    }
+
+    private fun checkTextOnReturn(entry: SemanticsNodeInteraction, open: () -> Unit = { entry.performClick() }, goBack: () -> Unit) {
+        compose.waitUntil(10_000) { entry.isDisplayed() }
+        val catalogue = compose.onRoot().captureToImage().toPixelMap()
+        open()
+        compose.waitUntil(10_000) { compose.onNodeWithContentDescription("Back to catalogue").isDisplayed() }
+        compose.onNodeWithText("Ratings").assertIsDisplayed()
+        val detail = compose.onRoot().captureToImage().toPixelMap()
+        val glyphs = listOf("seasons", "Ratings").associateWith { label ->
+            val bounds = compose.onNodeWithText(label, substring = true).fetchSemanticsNode().boundsInRoot
+            buildList {
+                for (y in bounds.top.toInt() until bounds.bottom.toInt()) {
+                    for (x in bounds.left.toInt() until bounds.right.toInt()) {
+                        // The green fixture has no blue. Isolate bright glyphs over dark catalogue pixels.
+                        if (detail[x, y].blue > .55f && catalogue[x, y].blue < .12f) {
+                            add(IntOffset(x, y))
+                        }
+                    }
+                }
+                assertTrue("Missing reference pixels for $label", size > 20)
+            }
+        }
+        compose.mainClock.autoAdvance = false
+        try {
+            goBack()
+            for (delta in listOf(96L, 240L)) {
+                compose.mainClock.advanceTimeBy(delta)
+                entry.assertIsDisplayed()
+                val returning = compose.onRoot().captureToImage().toPixelMap()
+                for ((label, pixels) in glyphs) {
+                    val remaining = pixels.count { returning[it.x, it.y].blue > .25f }
+                    assertTrue("$label still visible on return ($remaining/${pixels.size} pixels)", remaining < pixels.size * .1f)
+                }
+            }
+        } finally {
+            compose.mainClock.autoAdvance = true
+        }
+    }
+
+    private fun assertSoftPosterEdge(x: Int) {
+        val frame = compose.onRoot().captureToImage().toPixelMap()
+        fun greenAt(y: Int): Float {
+            val pixel = frame[x, y]
+            return pixel.green - maxOf(pixel.red, pixel.blue)
+        }
+        val column = 0 until frame.height
+        val peak = column.maxOf { greenAt(it) }
+        assertTrue("The green artwork must be visible", peak > .25f)
+        // Outgoing controls can cross this column. Inspect the bottom of the image itself.
+        val bottom = column.last { greenAt(it) > .03f }
+        val aboveEdge = greenAt(bottom - 2)
+        assertTrue("The moving image should fade to black at y=$bottom, green=$aboveEdge",
+            aboveEdge < peak * .15f)
+    }
+
+    private fun greenPosterFixture(): Anime {
+        val poster = File(compose.activity.cacheDir, "green-series-poster.png")
+        Bitmap.createBitmap(960, 1440, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.GREEN)
+            poster.outputStream().use { compress(Bitmap.CompressFormat.PNG, 100, it) }
+            recycle()
+        }
+        val url = android.net.Uri.fromFile(poster).toString()
+        return DemoCatalogue().shows.first().copy(id = "poster-transition", posterUrl = url, heroUrl = url)
+    }
+
+    private fun showFixture(show: Anime, motion: MotionLevel): CinemaViewModel {
+        val repository=object: CatalogueRepository {
+            override val shows=listOf(show)
+            override suspend fun search(query: String,category: String)=shows
+            override fun episodes(showId: String,season: Int)=emptyList<Episode>()
+        }
+        lateinit var vm: CinemaViewModel
+        compose.runOnUiThread {vm=ViewModelProvider(compose.activity)[CinemaViewModel::class.java]}
+        compose.waitUntil(30_000) {vm.account.value !is AccountState.Restoring && vm.ready.value}
+        if(vm.isConnected) {
+            compose.runOnUiThread {vm.logout()}
+            compose.waitUntil(15_000) {!vm.isConnected}
+        }
+        compose.runOnUiThread {
+            vm.enterDemo();vm.preferences {it.copy(motion=motion)}
+            // Keep fixture injection confined to instrumentation rather than adding a production override.
+            CinemaViewModel::class.java.getDeclaredMethod("setCatalogue",CatalogueRepository::class.java).apply {isAccessible=true}.invoke(vm,repository)
+            vm.navigate("Home")
+        }
+        compose.waitUntil(15_000) {compose.onAllNodesWithTag("home-banner").fetchSemanticsNodes().isNotEmpty()}
+        compose.waitForIdle()
+        return vm
     }
 
     private fun assertLogoLoaded() {

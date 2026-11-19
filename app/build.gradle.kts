@@ -4,6 +4,14 @@ plugins {
     alias(libs.plugins.serialization)
 }
 
+val signingDirectory = file(providers.gradleProperty("sumiSigningDir")
+    .getOrElse("${System.getProperty("user.home")}/.config/sumi/signing"))
+val releaseKeystore = signingDirectory.resolve("sumi-release.p12")
+val releasePassword = providers.fileContents(
+    layout.projectDirectory.file(signingDirectory.resolve("keystore.pass").absolutePath)
+).asText.orNull?.trimEnd('\r', '\n')
+val hasReleaseSigner = releaseKeystore.isFile && !releasePassword.isNullOrEmpty()
+
 android {
     namespace = "dev.cinema.crunchyroll"
     compileSdk { version = release(37) }
@@ -11,10 +19,21 @@ android {
         applicationId = "dev.cinema.crunchyroll"
         minSdk = 26
         targetSdk = 37
-        versionCode = 19
-        versionName = "0.1.0-alpha"
+        versionCode = 20
+        versionName = "0.2.0-beta"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments["notClass"] = "dev.cinema.crunchyroll.NativeAccountPlaybackTest,dev.cinema.crunchyroll.MyAnimeListLiveTest"
+    }
+    if (hasReleaseSigner) {
+        val releaseSigner = signingConfigs.create("sumiRelease") {
+            storeFile = releaseKeystore
+            storeType = "PKCS12"
+            keyAlias = "sumi"
+            storePassword = releasePassword
+            keyPassword = releasePassword
+            enableV3Signing = true
+        }
+        buildTypes.getByName("release").signingConfig = releaseSigner
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions {
@@ -23,6 +42,19 @@ android {
     }
     testOptions { unitTests.isReturnDefaultValues = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+}
+
+tasks.register("deviceApk") {
+    group = "build"
+    description = "Build the Sumi release-signed APK for device installs and updates."
+    if (hasReleaseSigner) {
+        dependsOn("assembleRelease")
+    } else {
+        doLast {
+            throw GradleException("The device APK needs sumi-release.p12 and keystore.pass in the Sumi signing directory. " +
+                "Set -PsumiSigningDir=<directory> to select it, or use :app:assembleDebug for development.")
+        }
+    }
 }
 
 dependencies {
