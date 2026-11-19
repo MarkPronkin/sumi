@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MarkPronkin/sumi/releases/tag/v0.2.1-beta"><img alt="Version 0.2.1 beta" src="https://img.shields.io/badge/version-0.2.1--beta-FF7A26"></a>
+  <a href="https://github.com/MarkPronkin/sumi/releases/tag/v0.2.2-beta"><img alt="Version 0.2.2 beta" src="https://img.shields.io/badge/version-0.2.2--beta-FF7A26"></a>
   <img alt="Android 8.0 or newer" src="https://img.shields.io/badge/Android-8.0%2B-000000">
   <img alt="Kotlin and Jetpack Compose" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-101010">
 </p>
@@ -33,7 +33,7 @@
 
 ## Getting started
 
-[Download the 0.2.1 beta APK](https://github.com/MarkPronkin/sumi/releases/download/v0.2.1-beta/sumi.apk) for Android phones, tablets, Android TV, and supported Quest headsets.
+[Download the 0.2.2 beta APK](https://github.com/MarkPronkin/sumi/releases/download/v0.2.2-beta/sumi.apk) for Android phones, tablets, Android TV, and supported Quest headsets.
 
 ### Requirements
 
